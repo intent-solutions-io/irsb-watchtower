@@ -84,6 +84,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WatchtowerConf
       postToApi: env.WORKER_POST_TO_API,
       apiUrl: env.API_URL,
     },
+    rules: {
+      challengeWindowSeconds: env.CHALLENGE_WINDOW_SECONDS,
+      minReceiptAgeSeconds: env.MIN_RECEIPT_AGE_SECONDS,
+      maxActionsPerScan: env.MAX_ACTIONS_PER_SCAN,
+      dryRun: env.DRY_RUN,
+      allowlistSolverIds: env.ACTION_ALLOWLIST_SOLVER_IDS,
+      allowlistReceiptIds: env.ACTION_ALLOWLIST_RECEIPT_IDS,
+      stateDir: env.STATE_DIR,
+      blockConfirmations: env.BLOCK_CONFIRMATIONS,
+    },
     logging: {
       level: env.LOG_LEVEL,
       format: env.LOG_FORMAT,

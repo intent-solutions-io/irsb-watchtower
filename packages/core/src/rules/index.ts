@@ -2,6 +2,7 @@ import type { Rule } from './rule.js';
 import { SampleRule, MockAlwaysFindRule } from './sampleRule.js';
 
 export { SampleRule, MockAlwaysFindRule } from './sampleRule.js';
+export { ReceiptStaleRule, createReceiptStaleRule, type ReceiptStaleRuleConfig } from './receiptStaleRule.js';
 
 /**
  * Rule registry - maps rule IDs to rule instances

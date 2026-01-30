@@ -23,6 +23,16 @@ describe('config schema', () => {
         lookbackBlocks: 1000,
         postToApi: false,
       },
+      rules: {
+        challengeWindowSeconds: 3600,
+        minReceiptAgeSeconds: 3600,
+        maxActionsPerScan: 3,
+        dryRun: true,
+        allowlistSolverIds: '',
+        allowlistReceiptIds: '',
+        stateDir: '.state',
+        blockConfirmations: 6,
+      },
       logging: {
         level: 'info',
         format: 'pretty',
@@ -67,6 +77,7 @@ describe('config schema', () => {
       },
       api: {},
       worker: {},
+      rules: {},
       logging: {},
     };
 
@@ -77,6 +88,8 @@ describe('config schema', () => {
       expect(result.data.api.enableActions).toBe(false);
       expect(result.data.worker.scanIntervalMs).toBe(60000);
       expect(result.data.logging.level).toBe('info');
+      expect(result.data.rules.dryRun).toBe(true);
+      expect(result.data.rules.challengeWindowSeconds).toBe(3600);
     }
   });
 });

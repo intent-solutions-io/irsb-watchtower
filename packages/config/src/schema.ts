@@ -110,6 +110,44 @@ export const workerConfigSchema = z.object({
 export type WorkerConfig = z.infer<typeof workerConfigSchema>;
 
 /**
+ * Rule configuration for receipt stale detection
+ */
+export const ruleConfigSchema = z.object({
+  /** Challenge window in seconds (default: 1 hour) */
+  challengeWindowSeconds: z.coerce.number().int().min(60).default(3600),
+
+  /** Minimum receipt age before considering it stale (default: equals challenge window) */
+  minReceiptAgeSeconds: z.coerce.number().int().min(60).default(3600),
+
+  /** Maximum actions per scan cycle (rate limiting) */
+  maxActionsPerScan: z.coerce.number().int().min(0).max(100).default(3),
+
+  /** Dry run mode - if true, findings are logged but no actions taken */
+  dryRun: z.coerce.boolean().default(true),
+
+  /** Allowlist of solver IDs (CSV string, empty = all allowed) */
+  allowlistSolverIds: z.string().default(''),
+
+  /** Allowlist of receipt IDs (CSV string, empty = all allowed) */
+  allowlistReceiptIds: z.string().default(''),
+
+  /** Directory for state files */
+  stateDir: z.string().default('.state'),
+
+  /** Block confirmations before processing (reorg safety) */
+  blockConfirmations: z.coerce.number().int().min(0).default(6),
+});
+export type RuleConfig = z.infer<typeof ruleConfigSchema>;
+
+/**
+ * Parse CSV allowlist string into array
+ */
+export function parseAllowlist(csv: string): string[] {
+  if (!csv || csv.trim() === '') return [];
+  return csv.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0);
+}
+
+/**
  * Logging configuration
  */
 export const loggingConfigSchema = z.object({
@@ -127,6 +165,7 @@ export const watchtowerConfigSchema = z.object({
   signer: signerConfigSchema.optional(),
   api: apiConfigSchema,
   worker: workerConfigSchema,
+  rules: ruleConfigSchema,
   logging: loggingConfigSchema,
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
 });

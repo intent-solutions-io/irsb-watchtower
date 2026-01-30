@@ -227,3 +227,78 @@ export interface SubmitEvidenceParams {
   /** Optional description */
   description?: string;
 }
+
+/**
+ * ReceiptPosted event data
+ */
+export interface ReceiptPostedEvent {
+  /** Receipt ID */
+  receiptId: Hex;
+
+  /** Solver ID */
+  solverId: Hex;
+
+  /** Intent hash */
+  intentHash: Hex;
+
+  /** Challenge deadline (Unix timestamp) */
+  challengeDeadline: bigint;
+
+  /** Block number where event was emitted */
+  blockNumber: bigint;
+
+  /** Transaction hash */
+  txHash: Hex;
+
+  /** Log index within the transaction */
+  logIndex: number;
+}
+
+/**
+ * ReceiptFinalized event data
+ */
+export interface ReceiptFinalizedEvent {
+  /** Receipt ID */
+  receiptId: Hex;
+
+  /** Solver ID */
+  solverId: Hex;
+
+  /** Block number where event was emitted */
+  blockNumber: bigint;
+
+  /** Transaction hash */
+  txHash: Hex;
+
+  /** Log index within the transaction */
+  logIndex: number;
+}
+
+/**
+ * DisputeOpened event data
+ */
+export interface DisputeOpenedEvent {
+  /** Dispute ID */
+  disputeId: Hex;
+
+  /** Receipt ID */
+  receiptId: Hex;
+
+  /** Challenger address */
+  challenger: Address;
+
+  /** Dispute reason */
+  reason: string;
+
+  /** Bond amount */
+  bond: bigint;
+
+  /** Block number where event was emitted */
+  blockNumber: bigint;
+
+  /** Transaction hash */
+  txHash: Hex;
+
+  /** Log index within the transaction */
+  logIndex: number;
+}

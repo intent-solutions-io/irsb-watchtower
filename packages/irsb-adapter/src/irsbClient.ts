@@ -23,6 +23,9 @@ import type {
   ReceiptStatus,
   SolverStatus,
   DisputeStatus,
+  ReceiptPostedEvent,
+  ReceiptFinalizedEvent,
+  DisputeOpenedEvent,
 } from './types.js';
 
 /**
@@ -296,6 +299,125 @@ export class IrsbClient {
 
     const hash = await this.walletClient.writeContract(request);
     return hash;
+  }
+
+  // ============================================================
+  // Event Queries
+  // ============================================================
+
+  /**
+   * Get ReceiptPosted events within a block range
+   */
+  async getReceiptPostedEvents(
+    fromBlock: bigint,
+    toBlock: bigint
+  ): Promise<ReceiptPostedEvent[]> {
+    const logs = await this.publicClient.getLogs({
+      address: this.contracts.intentReceiptHub as Address,
+      event: {
+        type: 'event',
+        name: 'ReceiptPosted',
+        inputs: [
+          { name: 'receiptId', type: 'bytes32', indexed: true },
+          { name: 'solverId', type: 'bytes32', indexed: true },
+          { name: 'intentHash', type: 'bytes32', indexed: false },
+          { name: 'challengeDeadline', type: 'uint64', indexed: false },
+        ],
+      },
+      fromBlock,
+      toBlock,
+    });
+
+    return logs.map((log) => ({
+      receiptId: log.args.receiptId as Hex,
+      solverId: log.args.solverId as Hex,
+      intentHash: log.args.intentHash as Hex,
+      challengeDeadline: log.args.challengeDeadline as bigint,
+      blockNumber: log.blockNumber,
+      txHash: log.transactionHash,
+      logIndex: log.logIndex,
+    }));
+  }
+
+  /**
+   * Get ReceiptFinalized events within a block range
+   */
+  async getReceiptFinalizedEvents(
+    fromBlock: bigint,
+    toBlock: bigint
+  ): Promise<ReceiptFinalizedEvent[]> {
+    const logs = await this.publicClient.getLogs({
+      address: this.contracts.intentReceiptHub as Address,
+      event: {
+        type: 'event',
+        name: 'ReceiptFinalized',
+        inputs: [
+          { name: 'receiptId', type: 'bytes32', indexed: true },
+          { name: 'solverId', type: 'bytes32', indexed: true },
+        ],
+      },
+      fromBlock,
+      toBlock,
+    });
+
+    return logs.map((log) => ({
+      receiptId: log.args.receiptId as Hex,
+      solverId: log.args.solverId as Hex,
+      blockNumber: log.blockNumber,
+      txHash: log.transactionHash,
+      logIndex: log.logIndex,
+    }));
+  }
+
+  /**
+   * Get DisputeOpened events within a block range
+   */
+  async getDisputeOpenedEvents(
+    fromBlock: bigint,
+    toBlock: bigint
+  ): Promise<DisputeOpenedEvent[]> {
+    const logs = await this.publicClient.getLogs({
+      address: this.contracts.intentReceiptHub as Address,
+      event: {
+        type: 'event',
+        name: 'DisputeOpened',
+        inputs: [
+          { name: 'disputeId', type: 'bytes32', indexed: true },
+          { name: 'receiptId', type: 'bytes32', indexed: true },
+          { name: 'challenger', type: 'address', indexed: true },
+          { name: 'reason', type: 'string', indexed: false },
+          { name: 'bond', type: 'uint256', indexed: false },
+        ],
+      },
+      fromBlock,
+      toBlock,
+    });
+
+    return logs.map((log) => ({
+      disputeId: log.args.disputeId as Hex,
+      receiptId: log.args.receiptId as Hex,
+      challenger: log.args.challenger as Address,
+      reason: log.args.reason as string,
+      bond: log.args.bond as bigint,
+      blockNumber: log.blockNumber,
+      txHash: log.transactionHash,
+      logIndex: log.logIndex,
+    }));
+  }
+
+  /**
+   * Get block timestamp
+   */
+  async getBlockTimestamp(blockNumber: bigint): Promise<bigint> {
+    const block = await this.publicClient.getBlock({ blockNumber });
+    return block.timestamp;
+  }
+
+  /**
+   * Get current block number
+   */
+  async getBlockNumber(): Promise<bigint> {
+    return this.publicClient.getBlockNumber();
   }
 
   // ============================================================
