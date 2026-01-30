@@ -1,36 +1,48 @@
 import {
   RuleEngine,
-  createDefaultRegistry,
+  RuleRegistry,
+  createReceiptStaleRule,
   serializeFinding,
   type ChainContext,
   type Finding,
+  ActionLedger,
+  BlockCursor,
+  ActionExecutor,
+  ActionType,
 } from '@irsb-watchtower/core';
+import { parseAllowlist } from '@irsb-watchtower/config';
+import { IrsbClient } from '@irsb-watchtower/irsb-adapter';
 import { createLogger } from './lib/logger.js';
 import { getConfig } from './lib/config.js';
 
 /**
- * Create a chain context for rule evaluation
- *
- * TODO: Replace with real chain context that queries actual contracts
+ * Create a chain context for rule evaluation using the IRSB client
  */
-function createChainContext(blockNumber: bigint): ChainContext {
+function createChainContext(
+  _client: IrsbClient, // Prefixed to indicate intentionally unused for now
+  blockNumber: bigint,
+  blockTimestamp: Date,
+  chainId: number
+): ChainContext {
   return {
     currentBlock: blockNumber,
-    blockTimestamp: new Date(),
-    chainId: 11155111, // Sepolia
+    blockTimestamp,
+    chainId,
 
     async getReceiptsInChallengeWindow() {
-      // TODO: Query IntentReceiptHub for receipts in challenge window
-      // For mock purposes, return a sample receipt approaching deadline
+      // In production, this would query the IRSB client for receipts
+      // For now, return mock data that demonstrates the rule
+      // TODO: Replace with actual client.getReceiptPostedEvents() + enrichment
       return [
         {
           id: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
           intentHash: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
           solverId: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-          createdAt: new Date(Date.now() - 50 * 60 * 1000), // 50 minutes ago
-          expiry: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+          createdAt: new Date(Date.now() - 90 * 60 * 1000), // 90 minutes ago
+          expiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
           status: 'pending' as const,
-          challengeDeadline: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+          // Challenge deadline was 30 minutes ago (stale!)
+          challengeDeadline: new Date(Date.now() - 30 * 60 * 1000),
           blockNumber: blockNumber - 100n,
           txHash: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
         },
@@ -38,17 +50,17 @@ function createChainContext(blockNumber: bigint): ChainContext {
     },
 
     async getActiveDisputes() {
-      // TODO: Query IntentReceiptHub for active disputes
+      // TODO: Replace with actual client.getDisputeOpenedEvents()
       return [];
     },
 
     async getSolverInfo(_solverId: string) {
-      // TODO: Query SolverRegistry for solver info
+      // TODO: Replace with actual client.getSolver()
       return null;
     },
 
     async getEvents(_fromBlock: bigint, _toBlock: bigint) {
-      // TODO: Query chain for events
+      // TODO: Replace with actual event fetching
       return [];
     },
   };
@@ -57,7 +69,11 @@ function createChainContext(blockNumber: bigint): ChainContext {
 /**
  * Post findings to API (if configured)
  */
-async function postFindingsToApi(findings: Finding[], apiUrl: string, logger: ReturnType<typeof createLogger>): Promise<void> {
+async function postFindingsToApi(
+  findings: Finding[],
+  apiUrl: string,
+  logger: ReturnType<typeof createLogger>
+): Promise<void> {
   try {
     const response = await fetch(`${apiUrl}/scan`, {
       method: 'POST',
@@ -80,14 +96,34 @@ async function postFindingsToApi(findings: Finding[], apiUrl: string, logger: Re
  */
 async function runScanCycle(
   engine: RuleEngine,
-  blockNumber: bigint,
+  client: IrsbClient,
+  cursor: BlockCursor,
+  executor: ActionExecutor,
   logger: ReturnType<typeof createLogger>,
   config: ReturnType<typeof getConfig>
 ): Promise<Finding[]> {
-  logger.info({ blockNumber: blockNumber.toString() }, 'Starting scan cycle');
+  // Get current block
+  const currentBlock = await client.getBlockNumber();
+  const blockTimestamp = new Date(); // Would fetch actual block timestamp in production
+
+  // Get start block for scan
+  const startBlock = cursor.getStartBlock(
+    currentBlock,
+    config.worker.lookbackBlocks,
+    config.rules.blockConfirmations
+  );
+
+  logger.info(
+    {
+      currentBlock: currentBlock.toString(),
+      startBlock: startBlock.toString(),
+      endBlock: currentBlock.toString(),
+    },
+    'Starting scan cycle'
+  );
 
   // Create chain context
-  const context = createChainContext(blockNumber);
+  const context = createChainContext(client, currentBlock, blockTimestamp, config.chain.chainId);
 
   // Execute rules
   const result = await engine.execute(context);
@@ -111,9 +147,35 @@ async function runScanCycle(
           severity: finding.severity,
           category: finding.category,
           title: finding.title,
+          receiptId: finding.receiptId,
+          recommendedAction: finding.recommendedAction,
         },
         'Finding detected'
       );
+    }
+
+    // Execute actions for findings
+    const actionResults = await executor.executeActions(result.findings);
+
+    for (const actionResult of actionResults) {
+      if (actionResult.success) {
+        if (actionResult.dryRun) {
+          logger.info(
+            { receiptId: actionResult.finding.receiptId, action: actionResult.finding.recommendedAction },
+            '[DRY RUN] Would execute action'
+          );
+        } else {
+          logger.info(
+            { receiptId: actionResult.finding.receiptId, txHash: actionResult.txHash },
+            'Action executed successfully'
+          );
+        }
+      } else {
+        logger.error(
+          { receiptId: actionResult.finding.receiptId, error: actionResult.error },
+          'Action execution failed'
+        );
+      }
     }
   } else {
     logger.debug(
@@ -138,6 +200,9 @@ async function runScanCycle(
     }
   }
 
+  // Update cursor
+  cursor.update(currentBlock);
+
   // Post to API if configured
   if (config.worker.postToApi && config.worker.apiUrl) {
     await postFindingsToApi(result.findings, config.worker.apiUrl, logger);
@@ -158,12 +223,68 @@ async function main() {
       scanIntervalMs: config.worker.scanIntervalMs,
       chainId: config.chain.chainId,
       postToApi: config.worker.postToApi,
+      dryRun: config.rules.dryRun,
+      maxActionsPerScan: config.rules.maxActionsPerScan,
     },
     'IRSB Watchtower Worker starting'
   );
 
+  // Initialize state management
+  const ledger = new ActionLedger(config.rules.stateDir);
+  const cursor = new BlockCursor(config.rules.stateDir, config.chain.chainId);
+
+  logger.info(
+    {
+      stateDir: config.rules.stateDir,
+      ledgerSize: ledger.size,
+      lastProcessedBlock: cursor.getLastProcessedBlock()?.toString() ?? 'none',
+    },
+    'State management initialized'
+  );
+
+  // Create IRSB client
+  const client = new IrsbClient({
+    rpcUrl: config.chain.rpcUrl,
+    chainId: config.chain.chainId,
+    contracts: config.contracts,
+  });
+
+  // Create action executor
+  const executor = new ActionExecutor({
+    dryRun: config.rules.dryRun,
+    maxActionsPerBatch: config.rules.maxActionsPerScan,
+    ledger,
+  });
+
+  // Set up logger for executor
+  executor.setLogger((message: string, level: 'info' | 'warn' | 'error') => {
+    logger[level]({ component: 'ActionExecutor' }, message);
+  });
+
+  // Register action handlers
+  // In production, these would call the IRSB client to execute transactions
+  executor.registerHandler('OPEN_DISPUTE' as ActionType, async (finding: Finding) => {
+    // TODO: Implement actual dispute opening via client
+    logger.info({ receiptId: finding.receiptId }, 'Opening dispute');
+    // const txHash = await client.openDispute({ ... });
+    return { txHash: '0xmock_tx_hash' };
+  });
+
+  // Create rule registry with receipt stale rule
+  const registry = new RuleRegistry();
+
+  // Add the receipt stale rule with config
+  const receiptStaleRule = createReceiptStaleRule({
+    challengeWindowSeconds: config.rules.challengeWindowSeconds,
+    minReceiptAgeSeconds: config.rules.minReceiptAgeSeconds,
+    allowlistSolverIds: parseAllowlist(config.rules.allowlistSolverIds),
+    allowlistReceiptIds: parseAllowlist(config.rules.allowlistReceiptIds),
+    blockConfirmations: config.rules.blockConfirmations,
+  });
+  registry.register(receiptStaleRule);
+
   // Create rule engine
-  const engine = new RuleEngine(createDefaultRegistry());
+  const engine = new RuleEngine(registry);
 
   // Log registered rules
   const rules = engine.getRegistry().getAll();
@@ -172,16 +293,16 @@ async function main() {
     'Rules registered'
   );
 
-  // Track mock block number (would be fetched from chain in production)
-  let mockBlockNumber = 1000000n;
-
   // Run initial scan
-  await runScanCycle(engine, mockBlockNumber, logger, config);
+  await runScanCycle(engine, client, cursor, executor, logger, config);
 
   // Start interval loop
   const intervalId = setInterval(async () => {
-    mockBlockNumber += 10n; // Simulate block progression
-    await runScanCycle(engine, mockBlockNumber, logger, config);
+    try {
+      await runScanCycle(engine, client, cursor, executor, logger, config);
+    } catch (error) {
+      logger.error({ error }, 'Scan cycle failed');
+    }
   }, config.worker.scanIntervalMs);
 
   // Graceful shutdown
