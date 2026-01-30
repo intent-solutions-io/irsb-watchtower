@@ -21,6 +21,8 @@ Three-layer design:
 2. **Runner** (apps/api, apps/worker) - API server + background scanner
 3. **Signer** (packages/signers) - Pluggable: LocalPrivateKey → KMS → Lit PKP
 
+pnpm workspace monorepo. All packages are ESM-only (`"type": "module"`) - use `.js` extension in imports.
+
 ## Repository Structure
 
 ```
@@ -43,24 +45,19 @@ IRSB-watchtower/
 ## Build Commands
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Build all packages
-pnpm build
-
-# Run all tests
-pnpm test
-
-# Type checking
-pnpm typecheck
-
-# Linting
-pnpm lint
+pnpm install       # Install dependencies
+pnpm build         # Build all packages
+pnpm test          # Run all tests
+pnpm typecheck     # Type checking
+pnpm lint          # Linting
+pnpm lint:fix      # Lint and auto-fix
+pnpm format        # Format with Prettier
+pnpm format:check  # Check formatting
+pnpm clean         # Remove all dist/ and node_modules
 
 # Development
-pnpm dev:api      # API on :3000
-pnpm dev:worker   # Background scanner
+pnpm dev:api       # API on :3000
+pnpm dev:worker    # Background scanner
 ```
 
 ## Key IRSB Contract Addresses (Sepolia)
@@ -97,14 +94,12 @@ All via environment variables (see `.env.example`):
 ## Testing
 
 ```bash
-# All tests
-pnpm test
+pnpm test                                    # All tests
+pnpm --filter @irsb-watchtower/core test     # Specific package
+pnpm --filter @irsb-watchtower/api test:watch  # Watch mode
 
-# Specific package
-pnpm --filter @irsb-watchtower/core test
-
-# Watch mode
-pnpm --filter @irsb-watchtower/api test:watch
+# Single test file (from package directory)
+cd packages/core && pnpm vitest run src/engine.test.ts
 ```
 
 ## Documentation
