@@ -1,0 +1,128 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { buildServer } from '../src/server.js';
+import type { FastifyInstance } from 'fastify';
+
+describe('API Server', () => {
+  let server: FastifyInstance;
+
+  beforeAll(async () => {
+    server = await buildServer();
+  });
+
+  afterAll(async () => {
+    await server.close();
+  });
+
+  describe('GET /health', () => {
+    it('returns ok status', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/health',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.status).toBe('ok');
+      expect(body.version).toBe('0.1.0');
+      expect(body.timestamp).toBeDefined();
+      expect(body.uptime).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('GET /health/ready', () => {
+    it('returns ok status', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/health/ready',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.status).toBe('ok');
+    });
+  });
+
+  describe('POST /scan', () => {
+    it('executes scan and returns findings', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/scan',
+        payload: {},
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.success).toBe(true);
+      expect(Array.isArray(body.findings)).toBe(true);
+      expect(body.metadata).toBeDefined();
+      expect(body.metadata.rulesExecuted).toBeGreaterThanOrEqual(0);
+    });
+
+    it('accepts specific rule IDs', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/scan',
+        payload: {
+          ruleIds: ['MOCK-ALWAYS-FIND'],
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.findings.length).toBe(1);
+      expect(body.findings[0].ruleId).toBe('MOCK-ALWAYS-FIND');
+    });
+  });
+
+  describe('GET /scan/rules', () => {
+    it('returns list of available rules', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/scan/rules',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(Array.isArray(body.rules)).toBe(true);
+      expect(body.rules.length).toBeGreaterThan(0);
+
+      const rule = body.rules[0];
+      expect(rule.id).toBeDefined();
+      expect(rule.name).toBeDefined();
+      expect(rule.description).toBeDefined();
+    });
+  });
+
+  describe('POST /actions/open-dispute', () => {
+    it('returns 403 when actions are disabled', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/actions/open-dispute',
+        payload: {
+          receiptId: '0x123',
+          reason: 'TIMEOUT',
+          evidenceHash: '0x456',
+          bondAmount: '100000000000000000',
+        },
+      });
+
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.payload);
+      expect(body.error).toBe('Actions are disabled');
+    });
+  });
+
+  describe('GET /actions/status', () => {
+    it('returns action status', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/actions/status',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.enabled).toBe(false); // Default is disabled
+      expect(body.signerConfigured).toBeDefined();
+    });
+  });
+});
