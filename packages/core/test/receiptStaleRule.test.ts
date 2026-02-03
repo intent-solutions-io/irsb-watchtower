@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { Severity, FindingCategory, ActionType } from '../src/finding.js';
 import { createReceiptStaleRule, type ReceiptStaleRuleConfig } from '../src/rules/receiptStaleRule.js';
 import type { ChainContext, ReceiptInfo, DisputeInfo } from '../src/rules/rule.js';
-import { Severity, FindingCategory, ActionType } from '../src/finding.js';
 
 /**
  * Create a mock chain context for testing

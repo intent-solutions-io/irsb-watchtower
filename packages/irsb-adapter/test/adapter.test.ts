@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import type { IrsbContracts } from '@irsb-watchtower/config';
+import { describe, it, expect } from 'vitest';
 import { IrsbClient } from '../src/irsbClient.js';
 import {
   DisputeReason,

@@ -1,10 +1,10 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import {
   RuleEngine,
   createDefaultRegistry,
   serializeFinding,
   type ChainContext,
 } from '@irsb-watchtower/core';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 /**
  * Scan request body

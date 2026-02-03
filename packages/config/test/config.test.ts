@@ -37,6 +37,9 @@ describe('config schema', () => {
         level: 'info',
         format: 'pretty',
       },
+      webhook: {
+        enabled: false,
+      },
       nodeEnv: 'development',
     };
 
@@ -79,6 +82,7 @@ describe('config schema', () => {
       worker: {},
       rules: {},
       logging: {},
+      webhook: {},
     };
 
     const result = watchtowerConfigSchema.safeParse(config);
@@ -90,6 +94,7 @@ describe('config schema', () => {
       expect(result.data.logging.level).toBe('info');
       expect(result.data.rules.dryRun).toBe(true);
       expect(result.data.rules.challengeWindowSeconds).toBe(3600);
+      expect(result.data.webhook.enabled).toBe(false);
     }
   });
 });

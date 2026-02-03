@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ActionExecutor, type ActionExecutorConfig } from '../src/actions/actionExecutor.js';
-import { ActionLedger } from '../src/state/actionLedger.js';
 import { createFinding, Severity, FindingCategory, ActionType, type Finding } from '../src/finding.js';
+import { ActionLedger } from '../src/state/actionLedger.js';
 
 const TEST_STATE_DIR = join(process.cwd(), '.test-executor-state');
 

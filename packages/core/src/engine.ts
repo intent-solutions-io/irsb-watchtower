@@ -1,6 +1,6 @@
 import type { Finding } from './finding.js';
-import type { Rule, ChainContext } from './rules/rule.js';
 import { type RuleRegistry, createDefaultRegistry } from './rules/index.js';
+import type { Rule, ChainContext } from './rules/rule.js';
 
 /**
  * Options for rule engine execution

@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ActionLedger, BlockCursor } from '../src/state/index.js';
 
 const TEST_STATE_DIR = join(process.cwd(), '.test-state');

@@ -1,4 +1,3 @@
-import type { Rule, RuleMetadata, ChainContext, ReceiptInfo, DisputeInfo } from './rule.js';
 import {
   createFinding,
   type Finding,
@@ -6,6 +5,7 @@ import {
   FindingCategory,
   ActionType,
 } from '../finding.js';
+import type { Rule, RuleMetadata, ChainContext, ReceiptInfo, DisputeInfo } from './rule.js';
 
 /**
  * Configuration for the Receipt Stale rule

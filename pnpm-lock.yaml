@@ -99,6 +99,9 @@ importers:
       '@irsb-watchtower/metrics':
         specifier: workspace:*
         version: link:../../packages/metrics
+      '@irsb-watchtower/webhook':
+        specifier: workspace:*
+        version: link:../../packages/webhook
       pino:
         specifier: ^8.19.0
         version: 8.21.0
@@ -188,6 +191,15 @@ importers:
       viem:
         specifier: ^2.21.0
         version: 2.45.1(typescript@5.9.3)(zod@3.25.76)
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.30)
+
+  packages/webhook:
     devDependencies:
       typescript:
         specifier: ^5.4.0

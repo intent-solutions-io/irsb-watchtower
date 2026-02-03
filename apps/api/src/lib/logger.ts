@@ -1,5 +1,5 @@
-import pino from 'pino';
 import type { LogLevel, LogFormat } from '@irsb-watchtower/config';
+import pino from 'pino';
 
 /**
  * Create a configured logger instance

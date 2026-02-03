@@ -20,6 +20,7 @@
     "@irsb-watchtower/core": "workspace:*",
     "@irsb-watchtower/irsb-adapter": "workspace:*",
     "@irsb-watchtower/metrics": "workspace:*",
+    "@irsb-watchtower/webhook": "workspace:*",
     "pino": "^8.19.0",
     "pino-pretty": "^10.3.0"
   },

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import { RuleEngine, createDefaultRegistry } from '@irsb-watchtower/core';
+import { describe, it, expect } from 'vitest';
 import { createChainContext } from '../src/worker.js';
 
 // Mock IRSB client for testing

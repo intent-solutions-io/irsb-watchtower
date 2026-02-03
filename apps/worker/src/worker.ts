@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http';
+import { parseAllowlist } from '@irsb-watchtower/config';
 import {
   RuleEngine,
   RuleRegistry,
@@ -11,11 +12,11 @@ import {
   ActionExecutor,
   ActionType,
 } from '@irsb-watchtower/core';
-import { parseAllowlist } from '@irsb-watchtower/config';
 import { IrsbClient } from '@irsb-watchtower/irsb-adapter';
-import { createLogger } from './lib/logger.js';
-import { getConfig } from './lib/config.js';
 import { metrics, registry as metricsRegistry } from '@irsb-watchtower/metrics';
+import { createWebhookSink, type WebhookSink } from '@irsb-watchtower/webhook';
+import { getConfig } from './lib/config.js';
+import { createLogger } from './lib/logger.js';
 
 /**
  * Create a chain context for rule evaluation using the IRSB client
@@ -102,7 +103,8 @@ async function runScanCycle(
   cursor: BlockCursor,
   executor: ActionExecutor,
   logger: ReturnType<typeof createLogger>,
-  config: ReturnType<typeof getConfig>
+  config: ReturnType<typeof getConfig>,
+  webhookSink?: WebhookSink
 ): Promise<Finding[]> {
   const chainId = config.chain.chainId;
   const scanStartTime = Date.now();
@@ -170,6 +172,17 @@ async function runScanCycle(
         metrics.recordAlert(finding.ruleId, finding.severity, chainId);
       }
 
+      // Send findings to webhook if configured
+      if (webhookSink) {
+        const serializedFindings = result.findings.map(serializeFinding);
+        const webhookResult = await webhookSink.sendFindings(serializedFindings);
+        if (webhookResult.success) {
+          logger.debug({ attempts: webhookResult.attempts }, 'Findings sent to webhook');
+        } else {
+          logger.warn({ error: webhookResult.error, attempts: webhookResult.attempts }, 'Failed to send findings to webhook');
+        }
+      }
+
       // Execute actions for findings
       const actionResults = await executor.executeActions(result.findings);
 
@@ -195,6 +208,19 @@ async function runScanCycle(
               'success',
               chainId
             );
+
+            // Send action result to webhook if configured
+            if (webhookSink) {
+              const actionWebhookResult = await webhookSink.sendActionResult({
+                receiptId: actionResult.finding.receiptId,
+                action: actionResult.finding.recommendedAction,
+                txHash: actionResult.txHash,
+                chainId,
+              });
+              if (!actionWebhookResult.success) {
+                logger.warn({ error: actionWebhookResult.error }, 'Failed to send action result to webhook');
+              }
+            }
           }
         } else {
           logger.error(
@@ -334,6 +360,38 @@ async function main() {
     'Rules registered'
   );
 
+  // Create webhook sink if enabled
+  let webhookSink: WebhookSink | undefined;
+  let heartbeatIntervalId: NodeJS.Timeout | undefined;
+  const startTime = Date.now();
+
+  if (config.webhook.enabled && config.webhook.url && config.webhook.secret) {
+    webhookSink = createWebhookSink({
+      url: config.webhook.url,
+      secret: config.webhook.secret,
+      timeoutMs: config.webhook.timeoutMs,
+      maxRetries: config.webhook.maxRetries,
+      retryDelayMs: config.webhook.retryDelayMs,
+    });
+    logger.info({ url: config.webhook.url }, 'Webhook sink configured');
+
+    // Start heartbeat if enabled
+    if (config.webhook.sendHeartbeat) {
+      heartbeatIntervalId = setInterval(async () => {
+        const lastBlock = cursor.getLastProcessedBlock();
+        const result = await webhookSink!.sendHeartbeat({
+          chainId: config.chain.chainId,
+          lastBlock: lastBlock?.toString() ?? '0',
+          uptime: Math.floor((Date.now() - startTime) / 1000),
+        });
+        if (!result.success) {
+          logger.warn({ error: result.error }, 'Failed to send heartbeat');
+        }
+      }, config.webhook.heartbeatIntervalMs);
+      logger.info({ intervalMs: config.webhook.heartbeatIntervalMs }, 'Webhook heartbeat enabled');
+    }
+  }
+
   // Start metrics HTTP server on port 9090
   const metricsPort = 9090;
   const metricsServer: Server = createServer(async (req, res) => {
@@ -360,12 +418,12 @@ async function main() {
   });
 
   // Run initial scan
-  await runScanCycle(engine, client, cursor, executor, logger, config);
+  await runScanCycle(engine, client, cursor, executor, logger, config, webhookSink);
 
   // Start interval loop
   const intervalId = setInterval(async () => {
     try {
-      await runScanCycle(engine, client, cursor, executor, logger, config);
+      await runScanCycle(engine, client, cursor, executor, logger, config, webhookSink);
     } catch (error) {
       logger.error({ error }, 'Scan cycle failed');
     }
@@ -375,6 +433,9 @@ async function main() {
   const shutdown = () => {
     logger.info('Shutting down worker');
     clearInterval(intervalId);
+    if (heartbeatIntervalId) {
+      clearInterval(heartbeatIntervalId);
+    }
     metricsServer.close();
     process.exit(0);
   };

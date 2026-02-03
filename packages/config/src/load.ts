@@ -98,6 +98,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WatchtowerConf
       level: env.LOG_LEVEL,
       format: env.LOG_FORMAT,
     },
+    webhook: {
+      enabled: env.WEBHOOK_ENABLED,
+      url: env.WEBHOOK_URL,
+      secret: env.WEBHOOK_SECRET,
+      timeoutMs: env.WEBHOOK_TIMEOUT_MS,
+      maxRetries: env.WEBHOOK_MAX_RETRIES,
+      retryDelayMs: env.WEBHOOK_RETRY_DELAY_MS,
+      sendHeartbeat: env.WEBHOOK_SEND_HEARTBEAT,
+      heartbeatIntervalMs: env.WEBHOOK_HEARTBEAT_INTERVAL_MS,
+    },
     nodeEnv: env.NODE_ENV,
   };
 

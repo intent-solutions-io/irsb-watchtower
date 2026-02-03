@@ -157,6 +157,39 @@ export const loggingConfigSchema = z.object({
 export type LoggingConfig = z.infer<typeof loggingConfigSchema>;
 
 /**
+ * Webhook configuration
+ */
+export const webhookConfigSchema = z.object({
+  /** Enable webhook notifications */
+  enabled: z.coerce.boolean().default(false),
+
+  /** Webhook URL to send notifications to */
+  url: z.string().url().optional(),
+
+  /** HMAC secret for signing payloads (minimum 32 characters) */
+  secret: z.string().min(32).optional(),
+
+  /** Request timeout in milliseconds */
+  timeoutMs: z.coerce.number().int().min(1000).max(60000).default(10000),
+
+  /** Maximum retry attempts */
+  maxRetries: z.coerce.number().int().min(0).max(10).default(3),
+
+  /** Base delay for exponential backoff in ms */
+  retryDelayMs: z.coerce.number().int().min(100).max(10000).default(1000),
+
+  /** Send heartbeat notifications */
+  sendHeartbeat: z.coerce.boolean().default(false),
+
+  /** Heartbeat interval in milliseconds (default: 60000 = 1 minute) */
+  heartbeatIntervalMs: z.coerce.number().int().min(10000).default(60000),
+}).refine(
+  (data) => !data.enabled || (data.url && data.secret),
+  { message: 'WEBHOOK_URL and WEBHOOK_SECRET are required when webhooks are enabled' }
+);
+export type WebhookConfig = z.infer<typeof webhookConfigSchema>;
+
+/**
  * Complete watchtower configuration
  */
 export const watchtowerConfigSchema = z.object({
@@ -167,6 +200,7 @@ export const watchtowerConfigSchema = z.object({
   worker: workerConfigSchema,
   rules: ruleConfigSchema,
   logging: loggingConfigSchema,
+  webhook: webhookConfigSchema,
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
 });
 export type WatchtowerConfig = z.infer<typeof watchtowerConfigSchema>;

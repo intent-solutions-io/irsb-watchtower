@@ -1,3 +1,4 @@
+import type { IrsbContracts } from '@irsb-watchtower/config';
 import {
   createPublicClient,
   createWalletClient,
@@ -9,7 +10,6 @@ import {
   type Account,
 } from 'viem';
 import { sepolia } from 'viem/chains';
-import type { IrsbContracts } from '@irsb-watchtower/config';
 import {
   IntentReceiptHubAbi,
   SolverRegistryAbi,

@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify';
 import { metrics } from '@irsb-watchtower/metrics';
+import type { FastifyInstance } from 'fastify';
 
 /**
  * Prometheus metrics endpoint

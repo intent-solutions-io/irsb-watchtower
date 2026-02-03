@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
 import { metrics, registry } from '@irsb-watchtower/metrics';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 describe('Metrics', () => {
   beforeEach(() => {
