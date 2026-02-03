@@ -101,6 +101,20 @@ async function postFindingsToApi(
 }
 
 /**
+ * Context object for scan cycle - encapsulates all per-chain components
+ */
+interface ScanContext {
+  engine: RuleEngine;
+  client: IrsbClient;
+  cursor: BlockCursor;
+  executor: ActionExecutor;
+  logger: ReturnType<typeof createLogger>;
+  config: ReturnType<typeof getConfig>;
+  webhookSink?: WebhookSink;
+  evidenceStore?: EvidenceStore;
+}
+
+/**
  * Convert a Finding to a FindingRecord for storage
  */
 function findingToRecord(finding: Finding, chainId: number): FindingRecord {
@@ -128,16 +142,8 @@ function findingToRecord(finding: Finding, chainId: number): FindingRecord {
 /**
  * Run a single scan cycle
  */
-async function runScanCycle(
-  engine: RuleEngine,
-  client: IrsbClient,
-  cursor: BlockCursor,
-  executor: ActionExecutor,
-  logger: ReturnType<typeof createLogger>,
-  config: ReturnType<typeof getConfig>,
-  webhookSink?: WebhookSink,
-  evidenceStore?: EvidenceStore
-): Promise<Finding[]> {
+async function runScanCycle(ctx: ScanContext): Promise<Finding[]> {
+  const { engine, client, cursor, executor, logger, config, webhookSink, evidenceStore } = ctx;
   const chainId = config.chain.chainId;
   const scanStartTime = Date.now();
 
@@ -417,9 +423,21 @@ function createChainWatcher(
     contracts: chainEntry.contracts,
   };
 
+  // Create scan context for this chain
+  const scanContext: ScanContext = {
+    engine,
+    client,
+    cursor,
+    executor,
+    logger: chainLogger,
+    config: chainConfig,
+    webhookSink,
+    evidenceStore,
+  };
+
   // Scan function for this chain
   const runScan = async () => {
-    return runScanCycle(engine, client, cursor, executor, chainLogger, chainConfig, webhookSink, evidenceStore);
+    return runScanCycle(scanContext);
   };
 
   // Start interval loop for this chain
