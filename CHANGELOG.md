@@ -5,6 +5,18 @@ All notable changes to IRSB-Watchtower will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-03
+
+### Added
+- **Multi-Chain Support** - Run concurrent watchers per chain with chain-specific state isolation (#6)
+- **CLI Utilities** - New `@irsb-watchtower/cli` package with `health`, `check-config`, and `simulate` commands
+- **Chain-Specific State** - ActionLedger and BlockCursor now support chain ID for proper multi-chain isolation
+- **CHAINS_CONFIG** - New environment variable for JSON array of chain configurations
+
+### Changed
+- Worker refactored to use `ScanContext` pattern for cleaner parameter passing
+- Configuration schema extended with `chainEntrySchema` and `multiChainConfigSchema`
+
 ## [0.2.0] - 2026-02-03
 
 ### Added

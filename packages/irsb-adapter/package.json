@@ -1,6 +1,6 @@
 {
   "name": "@irsb-watchtower/irsb-adapter",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "IRSB protocol contract adapter for watchtower",
   "type": "module",

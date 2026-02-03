@@ -1,6 +1,6 @@
 {
   "name": "@irsb-watchtower/worker",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Background worker for IRSB Watchtower scanning",
   "type": "module",
