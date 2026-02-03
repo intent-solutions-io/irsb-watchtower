@@ -6,17 +6,15 @@ import {
 } from 'prom-client';
 
 /**
- * Prometheus metrics for IRSB Watchtower Worker
+ * Shared Prometheus metrics for IRSB Watchtower
  *
- * Note: These metrics are identical to the API metrics to ensure consistency.
- * In a production setup, you might want to push these to a Pushgateway
- * or expose them via a separate metrics endpoint.
+ * Used by both API and Worker packages for consistent metrics collection.
  */
 
 // Create a new registry
 export const registry = new Registry();
 
-// Collect default Node.js metrics
+// Collect default Node.js metrics (memory, CPU, etc.)
 collectDefaultMetrics({ register: registry });
 
 /**
@@ -162,5 +160,12 @@ export const metrics = {
    */
   async getMetrics(): Promise<string> {
     return registry.metrics();
+  },
+
+  /**
+   * Get content type for metrics response
+   */
+  getContentType(): string {
+    return registry.contentType;
   },
 };

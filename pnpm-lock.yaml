@@ -53,6 +53,9 @@ importers:
       '@irsb-watchtower/irsb-adapter':
         specifier: workspace:*
         version: link:../../packages/irsb-adapter
+      '@irsb-watchtower/metrics':
+        specifier: workspace:*
+        version: link:../../packages/metrics
       '@irsb-watchtower/signers':
         specifier: workspace:*
         version: link:../../packages/signers
@@ -65,9 +68,6 @@ importers:
       pino-pretty:
         specifier: ^10.3.0
         version: 10.3.1
-      prom-client:
-        specifier: ^15.1.3
-        version: 15.1.3
     devDependencies:
       '@types/node':
         specifier: ^20.11.0
@@ -96,15 +96,15 @@ importers:
       '@irsb-watchtower/irsb-adapter':
         specifier: workspace:*
         version: link:../../packages/irsb-adapter
+      '@irsb-watchtower/metrics':
+        specifier: workspace:*
+        version: link:../../packages/metrics
       pino:
         specifier: ^8.19.0
         version: 8.21.0
       pino-pretty:
         specifier: ^10.3.0
         version: 10.3.1
-      prom-client:
-        specifier: ^15.1.3
-        version: 15.1.3
     devDependencies:
       '@types/node':
         specifier: ^20.11.0
@@ -162,6 +162,19 @@ importers:
       viem:
         specifier: ^2.21.0
         version: 2.45.1(typescript@5.9.3)(zod@3.25.76)
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.30)
+
+  packages/metrics:
+    dependencies:
+      prom-client:
+        specifier: ^15.1.0
+        version: 15.1.3
     devDependencies:
       typescript:
         specifier: ^5.4.0

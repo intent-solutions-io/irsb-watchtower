@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { metrics } from '../lib/metrics.js';
+import { metrics } from '@irsb-watchtower/metrics';
 
 /**
  * Prometheus metrics endpoint

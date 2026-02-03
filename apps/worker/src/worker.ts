@@ -15,7 +15,7 @@ import { parseAllowlist } from '@irsb-watchtower/config';
 import { IrsbClient } from '@irsb-watchtower/irsb-adapter';
 import { createLogger } from './lib/logger.js';
 import { getConfig } from './lib/config.js';
-import { metrics, registry as metricsRegistry } from './lib/metrics.js';
+import { metrics, registry as metricsRegistry } from '@irsb-watchtower/metrics';
 
 /**
  * Create a chain context for rule evaluation using the IRSB client

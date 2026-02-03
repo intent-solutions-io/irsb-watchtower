@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { metrics, registry } from '@irsb-watchtower/metrics';
+import { metrics, registry } from '../src/index.js';
 
 describe('Metrics', () => {
   beforeEach(() => {
@@ -88,6 +88,15 @@ describe('Metrics', () => {
 
       output = await metrics.getMetrics();
       expect(output).toContain('watchtower_active_scans{chainId="11155111"} 1');
+    });
+  });
+
+  describe('scanDuration', () => {
+    it('records scan duration', async () => {
+      metrics.recordScanDuration(11155111, 1500);
+
+      const output = await metrics.getMetrics();
+      expect(output).toContain('watchtower_scan_duration_ms{chainId="11155111"} 1500');
     });
   });
 
