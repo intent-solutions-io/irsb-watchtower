@@ -1,7 +1,7 @@
 import { existsSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ActionExecutor, type ActionExecutorConfig } from '../src/actions/actionExecutor.js';
+import { ActionExecutor } from '../src/actions/actionExecutor.js';
 import { createFinding, Severity, FindingCategory, ActionType, type Finding } from '../src/finding.js';
 import { ActionLedger } from '../src/state/actionLedger.js';
 

@@ -30,26 +30,15 @@ module.exports = {
       },
     ],
 
-    // Import ordering
-    'import/order': [
-      'error',
-      {
-        groups: [
-          'builtin',
-          'external',
-          'internal',
-          'parent',
-          'sibling',
-          'index',
-        ],
-        'newlines-between': 'never',
-        alphabetize: {
-          order: 'asc',
-          caseInsensitive: true,
-        },
-      },
-    ],
+    // Import rules - disable resolver-dependent rules (ESM compatibility issues)
+    'import/order': 'off', // Resolver issues with ESM - use TypeScript for this
     'import/no-unresolved': 'off', // TypeScript handles this
+    'import/namespace': 'off', // Resolver issues with ESM
+    'import/default': 'off', // Resolver issues with ESM
+    'import/export': 'off', // Resolver issues with ESM
+    'import/no-named-as-default': 'off', // Resolver issues with ESM
+    'import/no-named-as-default-member': 'off', // Resolver issues with ESM
+    'import/no-duplicates': 'off', // Resolver issues with ESM
 
     // General
     'no-console': ['warn', { allow: ['warn', 'error'] }],

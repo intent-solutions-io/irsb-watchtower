@@ -9,7 +9,6 @@ import {
   resilient,
   createRpcCircuitBreaker,
   resilientRpc,
-  type RetryConfig,
 } from '../src/index.js';
 
 describe('Retry', () => {
