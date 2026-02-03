@@ -15,10 +15,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@irsb-watchtower/chain": "workspace:*",
     "@irsb-watchtower/config": "workspace:*",
     "@irsb-watchtower/core": "workspace:*",
-    "@irsb-watchtower/chain": "workspace:*",
     "@irsb-watchtower/irsb-adapter": "workspace:*",
+    "@irsb-watchtower/metrics": "workspace:*",
     "pino": "^8.19.0",
     "pino-pretty": "^10.3.0"
   },

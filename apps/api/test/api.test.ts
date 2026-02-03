@@ -125,4 +125,36 @@ describe('API Server', () => {
       expect(body.signerConfigured).toBeDefined();
     });
   });
+
+  describe('GET /metrics', () => {
+    it('returns Prometheus metrics', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/metrics',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('text/plain');
+
+      // Check for expected metric names
+      const body = response.payload;
+      expect(body).toContain('watchtower_ticks_total');
+      expect(body).toContain('watchtower_alerts_total');
+      expect(body).toContain('watchtower_errors_total');
+      expect(body).toContain('watchtower_last_block');
+    });
+
+    it('includes default Node.js metrics', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/metrics',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.payload;
+      // Default metrics include process info
+      expect(body).toContain('process_cpu');
+      expect(body).toContain('nodejs_heap');
+    });
+  });
 });

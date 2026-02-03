@@ -1,8 +1,9 @@
 import Fastify from 'fastify';
 import { getConfig } from './lib/config.js';
-import { healthRoutes } from './routes/health.js';
-import { scanRoutes } from './routes/scan.js';
 import { actionRoutes } from './routes/actions.js';
+import { healthRoutes } from './routes/health.js';
+import { metricsRoutes } from './routes/metrics.js';
+import { scanRoutes } from './routes/scan.js';
 
 /**
  * Build and configure the Fastify server
@@ -30,6 +31,7 @@ export async function buildServer() {
   await server.register(healthRoutes);
   await server.register(scanRoutes);
   await server.register(actionRoutes);
+  await server.register(metricsRoutes);
 
   return server;
 }

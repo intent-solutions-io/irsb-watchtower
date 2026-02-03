@@ -1,3 +1,4 @@
+import { createServer, type Server } from 'node:http';
 import {
   RuleEngine,
   RuleRegistry,
@@ -14,6 +15,7 @@ import { parseAllowlist } from '@irsb-watchtower/config';
 import { IrsbClient } from '@irsb-watchtower/irsb-adapter';
 import { createLogger } from './lib/logger.js';
 import { getConfig } from './lib/config.js';
+import { metrics, registry as metricsRegistry } from '@irsb-watchtower/metrics';
 
 /**
  * Create a chain context for rule evaluation using the IRSB client
@@ -102,113 +104,152 @@ async function runScanCycle(
   logger: ReturnType<typeof createLogger>,
   config: ReturnType<typeof getConfig>
 ): Promise<Finding[]> {
-  // Get current block and its timestamp from the chain
-  const currentBlock = await client.getBlockNumber();
-  const blockTimestamp = new Date(Number(await client.getBlockTimestamp(currentBlock)) * 1000);
+  const chainId = config.chain.chainId;
+  const scanStartTime = Date.now();
 
-  // Get start block for scan
-  const startBlock = cursor.getStartBlock(
-    currentBlock,
-    config.worker.lookbackBlocks,
-    config.rules.blockConfirmations
-  );
+  // Track active scan
+  metrics.scanStarted(chainId);
+  metrics.recordTick(chainId);
 
-  logger.info(
-    {
-      currentBlock: currentBlock.toString(),
-      startBlock: startBlock.toString(),
-      endBlock: currentBlock.toString(),
-    },
-    'Starting scan cycle'
-  );
+  try {
+    // Get current block and its timestamp from the chain
+    const currentBlock = await client.getBlockNumber();
+    const blockTimestamp = new Date(Number(await client.getBlockTimestamp(currentBlock)) * 1000);
 
-  // Create chain context
-  const context = createChainContext(client, currentBlock, blockTimestamp, config.chain.chainId);
+    // Update last block metric
+    metrics.setLastBlock(chainId, currentBlock);
 
-  // Execute rules
-  const result = await engine.execute(context);
+    // Get start block for scan
+    const startBlock = cursor.getStartBlock(
+      currentBlock,
+      config.worker.lookbackBlocks,
+      config.rules.blockConfirmations
+    );
 
-  // Log results
-  if (result.findings.length > 0) {
     logger.info(
       {
-        findingsCount: result.findings.length,
-        rulesExecuted: result.rulesExecuted,
-        durationMs: result.totalDurationMs,
+        currentBlock: currentBlock.toString(),
+        startBlock: startBlock.toString(),
+        endBlock: currentBlock.toString(),
       },
-      'Scan cycle completed with findings'
+      'Starting scan cycle'
     );
 
-    // Log each finding
-    for (const finding of result.findings) {
-      logger.warn(
+    // Create chain context
+    const context = createChainContext(client, currentBlock, blockTimestamp, chainId);
+
+    // Execute rules
+    const result = await engine.execute(context);
+
+    // Log results and record metrics for findings
+    if (result.findings.length > 0) {
+      logger.info(
         {
-          ruleId: finding.ruleId,
-          severity: finding.severity,
-          category: finding.category,
-          title: finding.title,
-          receiptId: finding.receiptId,
-          recommendedAction: finding.recommendedAction,
+          findingsCount: result.findings.length,
+          rulesExecuted: result.rulesExecuted,
+          durationMs: result.totalDurationMs,
         },
-        'Finding detected'
+        'Scan cycle completed with findings'
       );
-    }
 
-    // Execute actions for findings
-    const actionResults = await executor.executeActions(result.findings);
+      // Log each finding and record metrics
+      for (const finding of result.findings) {
+        logger.warn(
+          {
+            ruleId: finding.ruleId,
+            severity: finding.severity,
+            category: finding.category,
+            title: finding.title,
+            receiptId: finding.receiptId,
+            recommendedAction: finding.recommendedAction,
+          },
+          'Finding detected'
+        );
 
-    for (const actionResult of actionResults) {
-      if (actionResult.success) {
-        if (actionResult.dryRun) {
-          logger.info(
-            { receiptId: actionResult.finding.receiptId, action: actionResult.finding.recommendedAction },
-            '[DRY RUN] Would execute action'
-          );
+        // Record alert metric
+        metrics.recordAlert(finding.ruleId, finding.severity, chainId);
+      }
+
+      // Execute actions for findings
+      const actionResults = await executor.executeActions(result.findings);
+
+      for (const actionResult of actionResults) {
+        if (actionResult.success) {
+          if (actionResult.dryRun) {
+            logger.info(
+              { receiptId: actionResult.finding.receiptId, action: actionResult.finding.recommendedAction },
+              '[DRY RUN] Would execute action'
+            );
+            metrics.recordAction(
+              actionResult.finding.recommendedAction,
+              'dry_run',
+              chainId
+            );
+          } else {
+            logger.info(
+              { receiptId: actionResult.finding.receiptId, txHash: actionResult.txHash },
+              'Action executed successfully'
+            );
+            metrics.recordAction(
+              actionResult.finding.recommendedAction,
+              'success',
+              chainId
+            );
+          }
         } else {
-          logger.info(
-            { receiptId: actionResult.finding.receiptId, txHash: actionResult.txHash },
-            'Action executed successfully'
+          logger.error(
+            { receiptId: actionResult.finding.receiptId, error: actionResult.error },
+            'Action execution failed'
+          );
+          metrics.recordAction(
+            actionResult.finding.recommendedAction,
+            'failure',
+            chainId
           );
         }
-      } else {
-        logger.error(
-          { receiptId: actionResult.finding.receiptId, error: actionResult.error },
-          'Action execution failed'
-        );
       }
-    }
-  } else {
-    logger.debug(
-      {
-        rulesExecuted: result.rulesExecuted,
-        durationMs: result.totalDurationMs,
-      },
-      'Scan cycle completed - no findings'
-    );
-  }
-
-  // Log any rule errors
-  for (const ruleResult of result.ruleResults) {
-    if (ruleResult.error) {
-      logger.error(
+    } else {
+      logger.debug(
         {
-          ruleId: ruleResult.ruleId,
-          error: ruleResult.error.message,
+          rulesExecuted: result.rulesExecuted,
+          durationMs: result.totalDurationMs,
         },
-        'Rule execution error'
+        'Scan cycle completed - no findings'
       );
     }
+
+    // Log any rule errors and record metrics
+    for (const ruleResult of result.ruleResults) {
+      if (ruleResult.error) {
+        logger.error(
+          {
+            ruleId: ruleResult.ruleId,
+            error: ruleResult.error.message,
+          },
+          'Rule execution error'
+        );
+        metrics.recordError('rule_execution', chainId);
+      }
+    }
+
+    // Update cursor
+    cursor.update(currentBlock);
+
+    // Post to API if configured
+    if (config.worker.postToApi && config.worker.apiUrl) {
+      await postFindingsToApi(result.findings, config.worker.apiUrl, logger);
+    }
+
+    return result.findings;
+  } catch (error) {
+    // Record error metric
+    metrics.recordError('scan_cycle', chainId);
+    throw error;
+  } finally {
+    // Always mark scan as completed and record duration
+    metrics.scanCompleted(chainId);
+    metrics.recordScanDuration(chainId, Date.now() - scanStartTime);
   }
-
-  // Update cursor
-  cursor.update(currentBlock);
-
-  // Post to API if configured
-  if (config.worker.postToApi && config.worker.apiUrl) {
-    await postFindingsToApi(result.findings, config.worker.apiUrl, logger);
-  }
-
-  return result.findings;
 }
 
 /**
@@ -293,6 +334,31 @@ async function main() {
     'Rules registered'
   );
 
+  // Start metrics HTTP server on port 9090
+  const metricsPort = 9090;
+  const metricsServer: Server = createServer(async (req, res) => {
+    if (req.url === '/metrics' && req.method === 'GET') {
+      try {
+        const metricsOutput = await metricsRegistry.metrics();
+        res.writeHead(200, { 'Content-Type': metricsRegistry.contentType });
+        res.end(metricsOutput);
+      } catch (error) {
+        res.writeHead(500);
+        res.end('Error generating metrics');
+      }
+    } else if (req.url === '/health' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+    } else {
+      res.writeHead(404);
+      res.end('Not found');
+    }
+  });
+
+  metricsServer.listen(metricsPort, () => {
+    logger.info({ port: metricsPort }, 'Worker metrics server started');
+  });
+
   // Run initial scan
   await runScanCycle(engine, client, cursor, executor, logger, config);
 
@@ -309,6 +375,7 @@ async function main() {
   const shutdown = () => {
     logger.info('Shutting down worker');
     clearInterval(intervalId);
+    metricsServer.close();
     process.exit(0);
   };
 
