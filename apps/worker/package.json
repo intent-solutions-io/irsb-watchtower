@@ -18,6 +18,7 @@
     "@irsb-watchtower/chain": "workspace:*",
     "@irsb-watchtower/config": "workspace:*",
     "@irsb-watchtower/core": "workspace:*",
+    "@irsb-watchtower/evidence-store": "workspace:*",
     "@irsb-watchtower/irsb-adapter": "workspace:*",
     "@irsb-watchtower/metrics": "workspace:*",
     "@irsb-watchtower/webhook": "workspace:*",

@@ -12,6 +12,12 @@ import {
   ActionExecutor,
   ActionType,
 } from '@irsb-watchtower/core';
+import {
+  createEvidenceStore,
+  type EvidenceStore,
+  type FindingRecord,
+  type ActionResultRecord,
+} from '@irsb-watchtower/evidence-store';
 import { IrsbClient } from '@irsb-watchtower/irsb-adapter';
 import { metrics, registry as metricsRegistry } from '@irsb-watchtower/metrics';
 import { createWebhookSink, type WebhookSink } from '@irsb-watchtower/webhook';
@@ -95,6 +101,31 @@ async function postFindingsToApi(
 }
 
 /**
+ * Convert a Finding to a FindingRecord for storage
+ */
+function findingToRecord(finding: Finding, chainId: number): FindingRecord {
+  return {
+    id: finding.id,
+    ruleId: finding.ruleId,
+    title: finding.title,
+    description: finding.description,
+    severity: finding.severity,
+    category: finding.category,
+    timestamp: finding.timestamp.toISOString(),
+    blockNumber: finding.blockNumber.toString(),
+    chainId,
+    txHash: finding.txHash,
+    contractAddress: finding.contractAddress,
+    solverId: finding.solverId,
+    receiptId: finding.receiptId,
+    recommendedAction: finding.recommendedAction,
+    metadata: finding.metadata as Record<string, unknown>,
+    actedUpon: finding.actedUpon,
+    actionTxHash: finding.actionTxHash,
+  };
+}
+
+/**
  * Run a single scan cycle
  */
 async function runScanCycle(
@@ -104,7 +135,8 @@ async function runScanCycle(
   executor: ActionExecutor,
   logger: ReturnType<typeof createLogger>,
   config: ReturnType<typeof getConfig>,
-  webhookSink?: WebhookSink
+  webhookSink?: WebhookSink,
+  evidenceStore?: EvidenceStore
 ): Promise<Finding[]> {
   const chainId = config.chain.chainId;
   const scanStartTime = Date.now();
@@ -170,6 +202,14 @@ async function runScanCycle(
 
         // Record alert metric
         metrics.recordAlert(finding.ruleId, finding.severity, chainId);
+
+        // Store finding in evidence store if enabled
+        if (evidenceStore) {
+          const writeResult = evidenceStore.writeFinding(findingToRecord(finding, chainId));
+          if (!writeResult.success) {
+            logger.warn({ error: writeResult.error, findingId: finding.id }, 'Failed to store finding');
+          }
+        }
       }
 
       // Send findings to webhook if configured
@@ -187,6 +227,20 @@ async function runScanCycle(
       const actionResults = await executor.executeActions(result.findings);
 
       for (const actionResult of actionResults) {
+        // Create action record for evidence store
+        const actionRecord: ActionResultRecord = {
+          id: `action-${actionResult.finding.id}-${Date.now()}`,
+          findingId: actionResult.finding.id,
+          receiptId: actionResult.finding.receiptId ?? '',
+          actionType: actionResult.finding.recommendedAction,
+          success: actionResult.success,
+          dryRun: actionResult.dryRun ?? false,
+          txHash: actionResult.txHash,
+          error: actionResult.error,
+          timestamp: new Date().toISOString(),
+          chainId,
+        };
+
         if (actionResult.success) {
           if (actionResult.dryRun) {
             logger.info(
@@ -232,6 +286,14 @@ async function runScanCycle(
             'failure',
             chainId
           );
+        }
+
+        // Store action result in evidence store if enabled
+        if (evidenceStore) {
+          const writeResult = evidenceStore.writeActionResult(actionRecord);
+          if (!writeResult.success) {
+            logger.warn({ error: writeResult.error, actionId: actionRecord.id }, 'Failed to store action result');
+          }
         }
       }
     } else {
@@ -360,6 +422,17 @@ async function main() {
     'Rules registered'
   );
 
+  // Create evidence store if enabled
+  let evidenceStore: EvidenceStore | undefined;
+  if (config.evidence.enabled) {
+    evidenceStore = createEvidenceStore({
+      dataDir: config.evidence.dataDir,
+      maxFileSizeBytes: config.evidence.maxFileSizeBytes,
+      validateOnWrite: config.evidence.validateOnWrite,
+    });
+    logger.info({ dataDir: config.evidence.dataDir }, 'Evidence store initialized');
+  }
+
   // Create webhook sink if enabled
   let webhookSink: WebhookSink | undefined;
   let heartbeatIntervalId: NodeJS.Timeout | undefined;
@@ -418,12 +491,12 @@ async function main() {
   });
 
   // Run initial scan
-  await runScanCycle(engine, client, cursor, executor, logger, config, webhookSink);
+  await runScanCycle(engine, client, cursor, executor, logger, config, webhookSink, evidenceStore);
 
   // Start interval loop
   const intervalId = setInterval(async () => {
     try {
-      await runScanCycle(engine, client, cursor, executor, logger, config, webhookSink);
+      await runScanCycle(engine, client, cursor, executor, logger, config, webhookSink, evidenceStore);
     } catch (error) {
       logger.error({ error }, 'Scan cycle failed');
     }

@@ -116,6 +116,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WatchtowerConf
       circuitBreakerResetTimeoutMs: env.CIRCUIT_BREAKER_RESET_TIMEOUT_MS,
       circuitBreakerSuccessThreshold: env.CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
     },
+    evidence: {
+      enabled: env.EVIDENCE_ENABLED,
+      dataDir: env.EVIDENCE_DATA_DIR,
+      maxFileSizeBytes: env.EVIDENCE_MAX_FILE_SIZE_BYTES,
+      validateOnWrite: env.EVIDENCE_VALIDATE_ON_WRITE,
+    },
     nodeEnv: env.NODE_ENV,
   };
 

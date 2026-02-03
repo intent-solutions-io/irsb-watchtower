@@ -41,6 +41,7 @@ describe('config schema', () => {
         enabled: false,
       },
       resilience: {},
+      evidence: {},
       nodeEnv: 'development',
     };
 
@@ -85,6 +86,7 @@ describe('config schema', () => {
       logging: {},
       webhook: {},
       resilience: {},
+      evidence: {},
     };
 
     const result = watchtowerConfigSchema.safeParse(config);
@@ -99,6 +101,9 @@ describe('config schema', () => {
       expect(result.data.webhook.enabled).toBe(false);
       expect(result.data.resilience.maxRetries).toBe(3);
       expect(result.data.resilience.circuitBreakerFailureThreshold).toBe(5);
+      expect(result.data.evidence.enabled).toBe(false);
+      expect(result.data.evidence.dataDir).toBe('./data');
+      expect(result.data.evidence.maxFileSizeBytes).toBe(10 * 1024 * 1024);
     }
   });
 });

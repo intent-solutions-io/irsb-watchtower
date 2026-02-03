@@ -181,6 +181,24 @@ export const resilienceConfigSchema = z.object({
 export type ResilienceConfig = z.infer<typeof resilienceConfigSchema>;
 
 /**
+ * Evidence store configuration
+ */
+export const evidenceConfigSchema = z.object({
+  /** Enable evidence store */
+  enabled: z.coerce.boolean().default(false),
+
+  /** Directory to store evidence files (default: ./data) */
+  dataDir: z.string().default('./data'),
+
+  /** Maximum file size in bytes before rotation (default: 10MB) */
+  maxFileSizeBytes: z.coerce.number().int().min(1024).default(10 * 1024 * 1024),
+
+  /** Whether to validate records on write (default: true) */
+  validateOnWrite: z.coerce.boolean().default(true),
+});
+export type EvidenceConfig = z.infer<typeof evidenceConfigSchema>;
+
+/**
  * Webhook configuration
  */
 export const webhookConfigSchema = z.object({
@@ -226,6 +244,7 @@ export const watchtowerConfigSchema = z.object({
   logging: loggingConfigSchema,
   webhook: webhookConfigSchema,
   resilience: resilienceConfigSchema,
+  evidence: evidenceConfigSchema,
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
 });
 export type WatchtowerConfig = z.infer<typeof watchtowerConfigSchema>;
