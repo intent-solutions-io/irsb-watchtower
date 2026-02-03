@@ -102,9 +102,9 @@ async function runScanCycle(
   logger: ReturnType<typeof createLogger>,
   config: ReturnType<typeof getConfig>
 ): Promise<Finding[]> {
-  // Get current block
+  // Get current block and its timestamp from the chain
   const currentBlock = await client.getBlockNumber();
-  const blockTimestamp = new Date(); // Would fetch actual block timestamp in production
+  const blockTimestamp = new Date(Number(await client.getBlockTimestamp(currentBlock)) * 1000);
 
   // Get start block for scan
   const startBlock = cursor.getStartBlock(

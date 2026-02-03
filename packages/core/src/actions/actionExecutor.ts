@@ -195,9 +195,8 @@ export class ActionExecutor {
       case 'SUBMIT_EVIDENCE':
         return 'SUBMIT_EVIDENCE';
       default:
-        // For any other action types, default to OPEN_DISPUTE
-        // This shouldn't happen if handlers are registered correctly
-        return 'OPEN_DISPUTE';
+        // Throw error for unhandled action types to catch missing handler registrations
+        throw new Error(`Unhandled action type: ${actionType}`);
     }
   }
 

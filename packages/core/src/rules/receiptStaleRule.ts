@@ -151,24 +151,21 @@ export class ReceiptStaleRule implements Rule {
 
   /**
    * Check if receipt/solver passes allowlist filters
+   * Uses exact matching to prevent unintended partial matches
    */
   private isAllowed(receiptId: string, solverId: string): boolean {
     const { allowlistReceiptIds, allowlistSolverIds } = this.config;
+    const receiptLower = receiptId.toLowerCase();
+    const solverLower = solverId.toLowerCase();
 
-    // If receipt allowlist is set, check it
-    if (allowlistReceiptIds.length > 0) {
-      const receiptLower = receiptId.toLowerCase();
-      if (!allowlistReceiptIds.some((id) => receiptLower.includes(id))) {
-        return false;
-      }
+    // If receipt allowlist is set, the receipt ID must be in it
+    if (allowlistReceiptIds.length > 0 && !allowlistReceiptIds.includes(receiptLower)) {
+      return false;
     }
 
-    // If solver allowlist is set, check it
-    if (allowlistSolverIds.length > 0) {
-      const solverLower = solverId.toLowerCase();
-      if (!allowlistSolverIds.some((id) => solverLower.includes(id))) {
-        return false;
-      }
+    // If solver allowlist is set, the solver ID must be in it
+    if (allowlistSolverIds.length > 0 && !allowlistSolverIds.includes(solverLower)) {
+      return false;
     }
 
     return true;

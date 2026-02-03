@@ -191,13 +191,15 @@ describe('ReceiptStaleRule', () => {
 
   describe('allowlists', () => {
     it('filters by solver ID allowlist', async () => {
+      // Allowlist uses exact match - must use full lowercased ID
+      const allowedSolverId = '0x' + '1111'.padEnd(64, '0');
       const rule = createReceiptStaleRule({
         ...defaultConfig,
-        allowlistSolverIds: ['1111'],
+        allowlistSolverIds: [allowedSolverId],
       });
       const receipt1 = createMockReceipt({
         id: '0x' + 'a'.repeat(64),
-        solverId: '0x' + '1111'.padEnd(64, '0'),
+        solverId: allowedSolverId,
       });
       const receipt2 = createMockReceipt({
         id: '0x' + 'b'.repeat(64),
@@ -212,12 +214,14 @@ describe('ReceiptStaleRule', () => {
     });
 
     it('filters by receipt ID allowlist', async () => {
+      // Allowlist uses exact match - must use full lowercased ID
+      const allowedReceiptId = '0x' + 'aaaa'.padEnd(64, '0');
       const rule = createReceiptStaleRule({
         ...defaultConfig,
-        allowlistReceiptIds: ['aaaa'],
+        allowlistReceiptIds: [allowedReceiptId],
       });
       const receipt1 = createMockReceipt({
-        id: '0x' + 'aaaa'.padEnd(64, '0'),
+        id: allowedReceiptId,
       });
       const receipt2 = createMockReceipt({
         id: '0x' + 'bbbb'.padEnd(64, '0'),
