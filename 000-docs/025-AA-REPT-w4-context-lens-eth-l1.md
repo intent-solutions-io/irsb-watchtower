@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-06 01:21 CST
 **Branch**: `feature/w4-context-lens-eth-l1`
-**PR**: (pending)
+**PR**: https://github.com/intent-solutions-io/irsb-watchtower/pull/13
 
 ## What Was Delivered
 
