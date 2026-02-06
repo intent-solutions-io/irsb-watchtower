@@ -72,3 +72,43 @@ export type {
   FailureCode,
   IngestResult,
 } from './behavior/index.js';
+
+// Identity
+export {
+  makeAgentId,
+  parseAgentId,
+  IdentityConfigSchema,
+  AgentCardSchema,
+  AgentCardServiceSchema,
+  AgentCardRegistrationSchema,
+  fetchAgentCard,
+  getCursor,
+  setCursor,
+  insertIdentityEvent,
+  getLatestEventForAgent,
+  getDistinctAgentTokenIds,
+  insertIdentitySnapshot,
+  getLatestIdentitySnapshots,
+  getDistinctCardHashes,
+  pollIdentityEvents,
+  deriveIdentitySignals,
+  syncIdentityEvents,
+  fetchAndScoreIdentities,
+} from './identity/index.js';
+
+export type {
+  IdentityRegistrationEvent,
+  IdentityEventSource,
+  CardFetchResult,
+  CardFetchStatus,
+  IdentityConfig,
+  AgentCard,
+  IdentitySnapshotRow,
+  IdentityEventRow,
+  PollResult,
+  SyncResult,
+  FetchResult,
+  CardFetchOptions,
+  FetchOptions,
+  DnsLookupFn,
+} from './identity/index.js';

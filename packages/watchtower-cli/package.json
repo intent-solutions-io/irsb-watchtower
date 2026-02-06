@@ -16,9 +16,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@irsb-watchtower/chain": "workspace:*",
     "@irsb-watchtower/watchtower-core": "workspace:*",
     "commander": "^12.0.0",
     "picocolors": "^1.0.0",
+    "viem": "^2.21.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {

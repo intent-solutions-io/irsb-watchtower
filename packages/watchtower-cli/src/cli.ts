@@ -23,7 +23,14 @@ import {
   verifyEvidence,
   SolverReceiptV0Schema,
   normalizeReceipt,
+  syncIdentityEvents,
+  fetchAndScoreIdentities,
+  IdentityConfigSchema,
+  parseAgentId,
+  getLatestIdentitySnapshots,
 } from '@irsb-watchtower/watchtower-core';
+import { RpcProvider } from '@irsb-watchtower/chain';
+import { createIdentityEventSource } from './identityAdapter.js';
 import { z } from 'zod';
 
 const program = new Command();
@@ -329,6 +336,156 @@ program
     } catch (err) {
       console.error(pc.red(`  Error: ${(err as Error).message}`));
       process.exit(1);
+    }
+  });
+
+// ── id:sync ─────────────────────────────────────────────────────────────
+const SEPOLIA_REGISTRY = '0x7177a6867296406881E20d6647232314736Dd09A';
+
+program
+  .command('id:sync')
+  .description('Poll ERC-8004 IdentityRegistry for new agent registrations')
+  .option('--rpc-url <url>', 'RPC endpoint', process.env['RPC_URL'])
+  .option('--chain-id <id>', 'Chain ID', '11155111')
+  .option('--registry <addr>', 'Registry contract address', SEPOLIA_REGISTRY)
+  .option('--start-block <n>', 'Start block number', '0')
+  .action(async (options: { rpcUrl?: string; chainId: string; registry: string; startBlock: string }) => {
+    if (!options.rpcUrl) {
+      console.error(pc.red('  --rpc-url or RPC_URL env required'));
+      process.exit(1);
+    }
+
+    const db = openDb();
+    try {
+      const provider = new RpcProvider({
+        rpcUrl: options.rpcUrl,
+        chainId: parseInt(options.chainId, 10),
+      });
+      const source = createIdentityEventSource(
+        provider,
+        options.registry as `0x${string}`,
+      );
+      const config = IdentityConfigSchema.parse({
+        chainId: parseInt(options.chainId, 10),
+        registryAddress: options.registry,
+        startBlock: parseInt(options.startBlock, 10),
+      });
+
+      console.log(pc.bold('\n  Identity Sync\n'));
+      const result = await syncIdentityEvents(db, source, config);
+
+      if (result.poll.skipped) {
+        console.log(`  ${pc.yellow('⏭')} Nothing to poll (chain tip too close)`);
+      } else {
+        console.log(`  ${pc.green('✓')} Polled blocks ${result.poll.fromBlock}–${result.poll.toBlock}`);
+        console.log(`  Events found: ${pc.cyan(String(result.poll.eventsFound))}`);
+      }
+      console.log('');
+    } finally {
+      db.close();
+    }
+  });
+
+// ── id:fetch ────────────────────────────────────────────────────────────
+program
+  .command('id:fetch')
+  .description('Fetch agent cards, derive identity signals, and score agents')
+  .option('--chain-id <id>', 'Chain ID', '11155111')
+  .option('--registry <addr>', 'Registry contract address', SEPOLIA_REGISTRY)
+  .option('--agent-token <id>', 'Process only this token ID')
+  .option('--allow-http', 'Allow HTTP (not just HTTPS) for card fetch')
+  .action(async (options: { chainId: string; registry: string; agentToken?: string; allowHttp?: boolean }) => {
+    const db = openDb();
+    try {
+      const config = IdentityConfigSchema.parse({
+        chainId: parseInt(options.chainId, 10),
+        registryAddress: options.registry,
+        allowHttp: options.allowHttp ?? false,
+      });
+
+      console.log(pc.bold('\n  Identity Fetch & Score\n'));
+      const results = await fetchAndScoreIdentities(db, config, {
+        agentTokenId: options.agentToken,
+        allowHttp: options.allowHttp,
+      });
+
+      if (results.length === 0) {
+        console.log(pc.yellow('  No agents discovered yet. Run id:sync first.'));
+      }
+
+      for (const r of results) {
+        console.log(`  ${pc.cyan(r.agentId)}`);
+        console.log(`    URI:       ${pc.gray(r.agentUri)}`);
+        console.log(`    Fetch:     ${r.fetchStatus === 'OK' ? pc.green(r.fetchStatus) : pc.red(r.fetchStatus)}`);
+        console.log(`    Signals:   ${r.signalCount}`);
+        console.log(`    Risk:      ${riskColor(r.overallRisk)}`);
+        console.log(`    Alerts:    ${r.alertCount}`);
+        console.log(`    Report:    ${pc.gray(r.reportId.slice(0, 16))}...`);
+        console.log('');
+      }
+    } finally {
+      db.close();
+    }
+  });
+
+// ── id:show ─────────────────────────────────────────────────────────────
+program
+  .command('id:show')
+  .description('Show identity details for an agent')
+  .argument('<agentId>', 'Agent identifier (erc8004:<chainId>:<registry>:<tokenId>)')
+  .action((agentId: string) => {
+    const parsed = parseAgentId(agentId);
+    if (!parsed) {
+      console.error(pc.red(`  Invalid agent ID format: ${agentId}`));
+      console.error(pc.gray('  Expected: erc8004:<chainId>:<registryAddress>:<tokenId>'));
+      process.exit(1);
+    }
+
+    const db = openDb();
+    try {
+      console.log(pc.bold(`\n  Identity: ${pc.cyan(agentId)}\n`));
+      console.log(`  Chain:     ${parsed.chainId}`);
+      console.log(`  Registry:  ${parsed.registryAddress}`);
+      console.log(`  Token ID:  ${parsed.tokenId}`);
+      console.log('');
+
+      // Show identity snapshots
+      const idSnapshots = getLatestIdentitySnapshots(db, agentId, 5);
+      if (idSnapshots.length > 0) {
+        console.log(pc.bold('  Recent Identity Snapshots:'));
+        for (const snap of idSnapshots) {
+          const time = new Date(snap.fetched_at * 1000).toISOString();
+          const status = snap.fetch_status === 'OK' ? pc.green(snap.fetch_status) : pc.red(snap.fetch_status);
+          console.log(`    ${pc.gray(time)} ${status} ${snap.card_hash ? pc.gray(snap.card_hash.slice(0, 16)) + '...' : ''}`);
+          if (snap.error_message) {
+            console.log(`      ${pc.yellow(snap.error_message)}`);
+          }
+        }
+        console.log('');
+      }
+
+      // Show latest risk report
+      const report = getLatestRiskReport(db, agentId);
+      if (report) {
+        console.log(pc.bold('  Latest Risk Report:'));
+        console.log(`    Risk:       ${riskColor(report.overallRisk)}`);
+        console.log(`    Confidence: ${report.confidence}`);
+        console.log(`    Generated:  ${new Date(report.generatedAt * 1000).toISOString()}`);
+        console.log(`    Report ID:  ${pc.gray(report.reportId.slice(0, 16))}...`);
+
+        if (report.signals.length > 0) {
+          console.log('    Signals:');
+          for (const sig of report.signals) {
+            console.log(`      ${severityColor(sig.severity)} ${pc.gray(sig.signalId)}`);
+          }
+        }
+        console.log('');
+      } else {
+        console.log(pc.gray('  No risk report found. Run id:fetch first.'));
+        console.log('');
+      }
+    } finally {
+      db.close();
     }
   });
 
