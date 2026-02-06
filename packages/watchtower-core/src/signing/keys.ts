@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export interface WatchtowerKeyPair {
-  publicKey: string;   // base64-encoded raw 32-byte Ed25519 public key
+  publicKey: string;   // base64-encoded SPKI DER Ed25519 public key
   privateKey: string;  // base64-encoded PKCS8 DER private key
 }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -122,8 +122,44 @@ describe('GET /v1/transparency/leaves', () => {
 });
 
 describe('API key auth', () => {
+  afterEach(() => {
+    delete process.env['WATCHTOWER_API_KEY'];
+  });
+
   it('should pass without API key when env is unset', async () => {
     const res = await server.inject({ method: 'GET', url: '/v1/agents/agent-1/risk' });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('should 401 when API key is set but header is missing', async () => {
+    process.env['WATCHTOWER_API_KEY'] = 'test-secret-key';
+    const res = await server.inject({ method: 'GET', url: '/v1/agents/agent-1/risk' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('should 401 when wrong API key is provided', async () => {
+    process.env['WATCHTOWER_API_KEY'] = 'test-secret-key';
+    const res = await server.inject({
+      method: 'GET',
+      url: '/v1/agents/agent-1/risk',
+      headers: { 'x-watchtower-key': 'wrong-key' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('should 200 when correct API key is provided', async () => {
+    process.env['WATCHTOWER_API_KEY'] = 'test-secret-key';
+    const res = await server.inject({
+      method: 'GET',
+      url: '/v1/agents/agent-1/risk',
+      headers: { 'x-watchtower-key': 'test-secret-key' },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('should not require API key for /healthz', async () => {
+    process.env['WATCHTOWER_API_KEY'] = 'test-secret-key';
+    const res = await server.inject({ method: 'GET', url: '/healthz' });
     expect(res.statusCode).toBe(200);
   });
 });
