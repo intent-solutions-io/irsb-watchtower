@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-06 01:47 CST
 **Branch**: `feature/w5-api-transparency-log`
-**PR**: (pending)
+**PR**: https://github.com/intent-solutions-io/irsb-watchtower/pull/14
 
 ## Deliverables
 
