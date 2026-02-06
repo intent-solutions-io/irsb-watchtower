@@ -31,8 +31,18 @@ import {
   ContextConfigSchema,
   syncAndScoreContext,
   parseTagFile,
+  generateKeyPair,
+  saveKeyPair,
+  loadKeyPair,
+  keyFileExists,
+  ensureKeyPair,
+  verifyReportSignature,
+  createLeaf,
+  appendLeaf,
+  verifyLogFile,
+  logFilePath,
 } from '@irsb-watchtower/watchtower-core';
-import type { ContextDataSource, AddressTagMap } from '@irsb-watchtower/watchtower-core';
+import type { ContextDataSource, AddressTagMap, ReportSignature } from '@irsb-watchtower/watchtower-core';
 import { RpcProvider } from '@irsb-watchtower/chain';
 import { createIdentityEventSource } from './identityAdapter.js';
 import { z } from 'zod';
@@ -657,6 +667,164 @@ program
       }
     } finally {
       db.close();
+    }
+  });
+
+// ── keygen ─────────────────────────────────────────────────────────────
+program
+  .command('keygen')
+  .description('Generate a new Ed25519 signing keypair')
+  .option('--key-path <path>', 'Path to save the keypair JSON', './data/watchtower-key.json')
+  .option('--force', 'Overwrite existing key file')
+  .action((options: { keyPath: string; force?: boolean }) => {
+    const keyPath = resolve(options.keyPath);
+    if (keyFileExists(keyPath) && !options.force) {
+      console.error(pc.red(`  Key file already exists: ${keyPath}`));
+      console.error(pc.gray('  Use --force to overwrite'));
+      process.exit(1);
+    }
+
+    const kp = generateKeyPair();
+    saveKeyPair(keyPath, kp);
+    console.log(`  ${pc.green('✓')} Keypair saved to ${pc.cyan(keyPath)}`);
+    console.log(`  Public key: ${pc.gray(kp.publicKey)}`);
+  });
+
+// ── pubkey ─────────────────────────────────────────────────────────────
+program
+  .command('pubkey')
+  .description('Print the public key from a keypair file')
+  .option('--key-path <path>', 'Path to the keypair JSON', './data/watchtower-key.json')
+  .action((options: { keyPath: string }) => {
+    const keyPath = resolve(options.keyPath);
+    if (!keyFileExists(keyPath)) {
+      console.error(pc.red(`  Key file not found: ${keyPath}`));
+      console.error(pc.gray('  Run "wt keygen" first'));
+      process.exit(1);
+    }
+
+    const kp = loadKeyPair(keyPath);
+    console.log(kp.publicKey);
+  });
+
+// ── verify-report ──────────────────────────────────────────────────────
+program
+  .command('verify-report')
+  .description('Verify a signed risk report')
+  .requiredOption('--report <path>', 'Path to the risk report JSON')
+  .requiredOption('--sig <path>', 'Path to the signature JSON')
+  .action((options: { report: string; sig: string }) => {
+    let reportData: { agentId: string; generatedAt: number; reportVersion: string; reportId: string };
+    let sigData: ReportSignature;
+
+    try {
+      reportData = JSON.parse(readFileSync(resolve(options.report), 'utf-8'));
+    } catch {
+      console.error(pc.red('  Failed to parse report JSON'));
+      process.exit(1);
+    }
+
+    try {
+      sigData = JSON.parse(readFileSync(resolve(options.sig), 'utf-8')) as ReportSignature;
+    } catch {
+      console.error(pc.red('  Failed to parse signature JSON'));
+      process.exit(1);
+    }
+
+    const valid = verifyReportSignature(reportData, sigData);
+    if (valid) {
+      console.log(`  ${pc.green('✓')} Signature is ${pc.green('VALID')}`);
+      console.log(`  Signed by: ${pc.gray(sigData.publicKey)}`);
+    } else {
+      console.log(`  ${pc.red('✗')} Signature is ${pc.red('INVALID')}`);
+      process.exit(2);
+    }
+  });
+
+// ── transparency:append ────────────────────────────────────────────────
+program
+  .command('transparency:append')
+  .description('Append a transparency leaf for an agent risk report')
+  .requiredOption('--agentId <id>', 'Agent identifier')
+  .option('--key-path <path>', 'Path to the keypair JSON', './data/watchtower-key.json')
+  .option('--log-dir <dir>', 'Transparency log directory', './data/transparency')
+  .action((options: { agentId: string; keyPath: string; logDir: string }) => {
+    const keyPath = resolve(options.keyPath);
+    const kp = ensureKeyPair(keyPath);
+
+    const db = openDb();
+    try {
+      const report = getLatestRiskReport(db, options.agentId);
+      if (!report) {
+        console.error(pc.red(`  No risk report found for agent ${options.agentId}`));
+        process.exit(1);
+      }
+
+      const leaf = createLeaf({
+        agentId: report.agentId,
+        riskReportHash: report.reportId,
+        overallRisk: report.overallRisk,
+      }, kp);
+
+      const filePath = appendLeaf(resolve(options.logDir), leaf);
+      console.log(`  ${pc.green('✓')} Leaf appended to ${pc.cyan(filePath)}`);
+      console.log(`  Leaf ID:  ${pc.gray(leaf.leafId.slice(0, 16))}...`);
+      console.log(`  Agent:    ${pc.cyan(leaf.agentId)}`);
+      console.log(`  Risk:     ${riskColor(leaf.overallRisk)}`);
+    } finally {
+      db.close();
+    }
+  });
+
+// ── transparency:verify ────────────────────────────────────────────────
+program
+  .command('transparency:verify')
+  .description('Verify the integrity of a transparency log file')
+  .option('--date <YYYY-MM-DD>', 'Date to verify (default: today)')
+  .option('--log-dir <dir>', 'Transparency log directory', './data/transparency')
+  .option('--key-path <path>', 'Path to the keypair JSON (for public key)', './data/watchtower-key.json')
+  .option('--public-key <base64>', 'Public key (base64) — overrides --key-path')
+  .action((options: { date?: string; logDir: string; keyPath: string; publicKey?: string }) => {
+    let pubKey: string;
+    if (options.publicKey) {
+      pubKey = options.publicKey;
+    } else {
+      const keyPath = resolve(options.keyPath);
+      if (!keyFileExists(keyPath)) {
+        console.error(pc.red(`  Key file not found: ${keyPath}`));
+        console.error(pc.gray('  Provide --public-key or run "wt keygen" first'));
+        process.exit(1);
+      }
+      pubKey = loadKeyPair(keyPath).publicKey;
+    }
+
+    const dateStr = options.date ?? new Date().toISOString().slice(0, 10);
+    const date = new Date(dateStr + 'T00:00:00Z');
+    if (isNaN(date.getTime())) {
+      console.error(pc.red(`  Invalid date: ${options.date}`));
+      process.exit(1);
+    }
+
+    const filePath = logFilePath(resolve(options.logDir), date);
+    const result = verifyLogFile(filePath, pubKey);
+
+    console.log(pc.bold(`\n  Transparency Log Verification\n`));
+    console.log(`  File:    ${pc.cyan(result.filePath)}`);
+    console.log(`  Total:   ${result.totalLeaves}`);
+    console.log(`  Valid:   ${pc.green(String(result.validLeaves))}`);
+    console.log(`  Invalid: ${result.invalidLeaves > 0 ? pc.red(String(result.invalidLeaves)) : pc.green('0')}`);
+
+    if (result.errors.length > 0) {
+      console.log('');
+      console.log(pc.bold('  Errors:'));
+      for (const err of result.errors) {
+        console.log(`    Line ${err.line}: ${pc.red(err.error)} (${pc.gray(err.leafId)})`);
+      }
+    }
+    console.log('');
+
+    if (result.invalidLeaves > 0) {
+      process.exit(2);
     }
   });
 

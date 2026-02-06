@@ -136,3 +136,37 @@ export type {
   ContextSyncOptions,
   ContextSyncResult,
 } from './context/index.js';
+
+// Signing
+export {
+  generateKeyPair,
+  saveKeyPair,
+  loadKeyPair,
+  keyFileExists,
+  ensureKeyPair,
+  signReport,
+  verifyReportSignature,
+  signData,
+  verifyData,
+} from './signing/index.js';
+
+export type {
+  WatchtowerKeyPair,
+  ReportSignature,
+} from './signing/index.js';
+
+// Transparency
+export {
+  createLeaf,
+  verifyLeaf,
+  logFilePath,
+  appendLeaf,
+  verifyLogFile,
+  readLogFile,
+} from './transparency/index.js';
+
+export type {
+  TransparencyLeaf,
+  LeafInput,
+  VerifyLogResult,
+} from './transparency/index.js';

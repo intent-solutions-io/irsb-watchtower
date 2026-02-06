@@ -264,6 +264,31 @@ importers:
         specifier: ^1.2.0
         version: 1.6.1(@types/node@20.19.30)
 
+  packages/watchtower-api:
+    dependencies:
+      '@irsb-watchtower/watchtower-core':
+        specifier: workspace:*
+        version: link:../watchtower-core
+      fastify:
+        specifier: ^5.7.4
+        version: 5.7.4
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.0
+        version: 7.6.13
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.30
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.30)
+
   packages/watchtower-cli:
     dependencies:
       '@irsb-watchtower/chain':
