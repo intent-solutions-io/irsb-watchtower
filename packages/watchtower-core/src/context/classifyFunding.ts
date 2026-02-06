@@ -16,8 +16,10 @@ export function parseTagFile(content: string, defaultTag: FundingKind): AddressT
     if (!line || line.startsWith('#')) continue;
     const parts = line.split(',').map((s) => s.trim());
     const addr = parts[0]!.toLowerCase();
-    const tag = (parts[1] as FundingKind | undefined) ?? defaultTag;
-    map[addr] = tag;
+    if (addr) {
+      const tag = (parts[1] as FundingKind | undefined) ?? defaultTag;
+      map[addr] = tag;
+    }
   }
   return map;
 }

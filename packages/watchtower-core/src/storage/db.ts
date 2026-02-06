@@ -127,27 +127,7 @@ export function initDbWithInlineMigrations(dbPath: string): Database.Database {
       .map((row) => (row as { name: string }).name),
   );
 
-  if (!applied.has('001_init.sql')) {
-    db.exec(MIGRATION_001);
-    db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
-      '001_init.sql',
-      Math.floor(Date.now() / 1000),
-    );
-  }
-  if (!applied.has('002_identity.sql')) {
-    db.exec(MIGRATION_002);
-    db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
-      '002_identity.sql',
-      Math.floor(Date.now() / 1000),
-    );
-  }
-  if (!applied.has('003_context.sql')) {
-    db.exec(MIGRATION_003);
-    db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
-      '003_context.sql',
-      Math.floor(Date.now() / 1000),
-    );
-  }
+  applyInlineMigrations(db, applied);
 
   return db;
 }

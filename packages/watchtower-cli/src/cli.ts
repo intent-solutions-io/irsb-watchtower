@@ -637,8 +637,11 @@ program
 
         // Show all evidence links
         if (report.evidenceLinks.length > 0) {
-          const cxEvidence = report.evidenceLinks.filter(
-            (e) => e.type.startsWith('funding') || e.type.startsWith('top') || e.type.startsWith('tx') || e.type.startsWith('current') || e.type.startsWith('prior') || e.type.startsWith('micro') || e.type.startsWith('unique') || e.type.startsWith('activity'),
+          const cxEvidencePrefixes = [
+            'funding', 'top', 'tx', 'current', 'prior', 'micro', 'unique', 'activity',
+          ];
+          const cxEvidence = report.evidenceLinks.filter((e) =>
+            cxEvidencePrefixes.some((prefix) => e.type.startsWith(prefix)),
           );
           if (cxEvidence.length > 0) {
             console.log(pc.bold('  Context Evidence:'));
