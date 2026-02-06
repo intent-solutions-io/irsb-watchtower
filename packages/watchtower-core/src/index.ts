@@ -112,3 +112,27 @@ export type {
   FetchOptions,
   DnsLookupFn,
 } from './identity/index.js';
+
+// Context
+export {
+  ContextConfigSchema,
+  classifyFunding,
+  parseTagFile,
+  deriveContextSignals,
+  getContextCursor,
+  setContextCursor,
+  syncAndScoreContext,
+} from './context/index.js';
+
+export type {
+  TransactionInfo,
+  TokenTransferInfo,
+  FundingKind,
+  FundingSource,
+  ContextDataSource,
+  ContextConfig,
+  AddressTagMap,
+  ContextSignalInput,
+  ContextSyncOptions,
+  ContextSyncResult,
+} from './context/index.js';

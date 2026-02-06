@@ -91,6 +91,13 @@ function applyInlineMigrations(db: Database.Database, applied: Set<string>): voi
       Math.floor(Date.now() / 1000),
     );
   }
+  if (!applied.has('003_context.sql')) {
+    db.exec(MIGRATION_003);
+    db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+      '003_context.sql',
+      Math.floor(Date.now() / 1000),
+    );
+  }
 }
 
 /**
@@ -131,6 +138,13 @@ export function initDbWithInlineMigrations(dbPath: string): Database.Database {
     db.exec(MIGRATION_002);
     db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
       '002_identity.sql',
+      Math.floor(Date.now() / 1000),
+    );
+  }
+  if (!applied.has('003_context.sql')) {
+    db.exec(MIGRATION_003);
+    db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+      '003_context.sql',
       Math.floor(Date.now() / 1000),
     );
   }
@@ -215,4 +229,14 @@ CREATE TABLE IF NOT EXISTS identity_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_identity_snapshots_agent
   ON identity_snapshots(agent_id, fetched_at DESC);
+`;
+
+const MIGRATION_003 = `
+CREATE TABLE IF NOT EXISTS context_cursor (
+  agent_id TEXT NOT NULL,
+  chain_id INTEGER NOT NULL,
+  last_block INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (agent_id, chain_id)
+);
 `;

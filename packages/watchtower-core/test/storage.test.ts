@@ -48,9 +48,10 @@ describe('initDb', () => {
 
   it('should track applied migrations', () => {
     const migrations = db.prepare('SELECT name FROM _migrations ORDER BY name').all() as Array<{ name: string }>;
-    expect(migrations).toHaveLength(2);
+    expect(migrations).toHaveLength(3);
     expect(migrations[0]!.name).toBe('001_init.sql');
     expect(migrations[1]!.name).toBe('002_identity.sql');
+    expect(migrations[2]!.name).toBe('003_context.sql');
   });
 });
 

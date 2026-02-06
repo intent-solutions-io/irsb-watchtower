@@ -28,7 +28,11 @@ import {
   IdentityConfigSchema,
   parseAgentId,
   getLatestIdentitySnapshots,
+  ContextConfigSchema,
+  syncAndScoreContext,
+  parseTagFile,
 } from '@irsb-watchtower/watchtower-core';
+import type { ContextDataSource, AddressTagMap } from '@irsb-watchtower/watchtower-core';
 import { RpcProvider } from '@irsb-watchtower/chain';
 import { createIdentityEventSource } from './identityAdapter.js';
 import { z } from 'zod';
@@ -482,6 +486,170 @@ program
         console.log('');
       } else {
         console.log(pc.gray('  No risk report found. Run id:fetch first.'));
+        console.log('');
+      }
+    } finally {
+      db.close();
+    }
+  });
+
+// ── cx:sync ────────────────────────────────────────────────────────────
+program
+  .command('cx:sync')
+  .description('Analyze on-chain context for an agent and derive context signals')
+  .requiredOption('--agentId <id>', 'Agent identifier (e.g. erc8004:<chainId>:<registry>:<tokenId>)')
+  .requiredOption('--address <addr>', 'Ethereum address to analyze')
+  .option('--rpc-url <url>', 'RPC endpoint', process.env['RPC_URL'])
+  .option('--chain-id <id>', 'Chain ID', '11155111')
+  .option('--blocks <n>', 'Max blocks to scan', '50000')
+  .option('--from-block <n>', 'Override start block')
+  .option('--to-block <n>', 'Override end block')
+  .option('--allowlist <path>', 'Path to allowlist file (address,tag per line)')
+  .option('--denylist <path>', 'Path to denylist file (address,tag per line)')
+  .option('--enable-payment-adjacency', 'Enable payment adjacency signals')
+  .option('--payment-tokens <addrs>', 'Comma-separated token contract addresses')
+  .action(async (options: {
+    agentId: string;
+    address: string;
+    rpcUrl?: string;
+    chainId: string;
+    blocks: string;
+    fromBlock?: string;
+    toBlock?: string;
+    allowlist?: string;
+    denylist?: string;
+    enablePaymentAdjacency?: boolean;
+    paymentTokens?: string;
+  }) => {
+    if (!options.rpcUrl) {
+      console.error(pc.red('  --rpc-url or RPC_URL env required'));
+      process.exit(1);
+    }
+
+    const db = openDb();
+    try {
+      const provider = new RpcProvider({
+        rpcUrl: options.rpcUrl,
+        chainId: parseInt(options.chainId, 10),
+      });
+
+      // Build a ContextDataSource from the RPC provider
+      const source: ContextDataSource = {
+        async getBlockNumber() {
+          return provider.getBlockNumber();
+        },
+        async getTransactions(_address, fromBlock, toBlock) {
+          // Level 1: simplified — real production would use trace APIs or indexer
+          const blockNum = await provider.getBlockNumber();
+          const safeToBlock = toBlock > blockNum ? blockNum : toBlock;
+          if (fromBlock > safeToBlock) return [];
+          // Returns empty for now; live RPC tx enumeration requires
+          // eth_getBlockByNumber iteration or a dedicated indexer
+          return [];
+        },
+      };
+
+      // Load allowlist/denylist
+      let allowlist: AddressTagMap | undefined;
+      let denylist: AddressTagMap | undefined;
+      if (options.allowlist) {
+        const content = readFileSync(resolve(options.allowlist), 'utf-8');
+        allowlist = parseTagFile(content, 'CEX');
+      }
+      if (options.denylist) {
+        const content = readFileSync(resolve(options.denylist), 'utf-8');
+        denylist = parseTagFile(content, 'MIXER');
+      }
+
+      const config = ContextConfigSchema.parse({
+        chainId: parseInt(options.chainId, 10),
+        maxBlocks: parseInt(options.blocks, 10),
+        enablePaymentAdjacency: options.enablePaymentAdjacency ?? false,
+        paymentTokenAddresses: options.paymentTokens
+          ? options.paymentTokens.split(',').map((s) => s.trim())
+          : [],
+      });
+
+      console.log(pc.bold('\n  Context Sync\n'));
+      const result = await syncAndScoreContext(db, source, config, {
+        agentId: options.agentId,
+        agentAddress: options.address,
+        fromBlock: options.fromBlock ? BigInt(options.fromBlock) : undefined,
+        toBlock: options.toBlock ? BigInt(options.toBlock) : undefined,
+        allowlist,
+        denylist,
+      });
+
+      if (result.skipped) {
+        console.log(`  ${pc.yellow('⏭')} Nothing to sync (already at chain tip)`);
+      } else {
+        console.log(`  ${pc.green('✓')} Scanned blocks ${result.fromBlock}–${result.toBlock}`);
+        console.log(`  Transactions: ${pc.cyan(String(result.txCount))}`);
+        console.log(`  Signals:      ${result.signalCount}`);
+        console.log(`  Risk:         ${riskColor(result.overallRisk)}`);
+        console.log(`  Alerts:       ${result.alertCount}`);
+        console.log(`  Report:       ${pc.gray(result.reportId.slice(0, 16))}...`);
+      }
+      console.log('');
+    } finally {
+      db.close();
+    }
+  });
+
+// ── cx:show ────────────────────────────────────────────────────────────
+program
+  .command('cx:show')
+  .description('Show context analysis details for an agent')
+  .argument('<agentId>', 'Agent identifier')
+  .action((agentId: string) => {
+    const db = openDb();
+    try {
+      const agent = getAgent(db, agentId);
+      if (!agent) {
+        console.error(pc.red(`  Agent ${agentId} not found`));
+        process.exit(1);
+      }
+
+      console.log(pc.bold(`\n  Context: ${pc.cyan(agentId)}\n`));
+
+      // Show latest risk report with signals
+      const report = getLatestRiskReport(db, agentId);
+      if (report) {
+        console.log(pc.bold('  Latest Risk Report:'));
+        console.log(`    Risk:       ${riskColor(report.overallRisk)}`);
+        console.log(`    Confidence: ${report.confidence}`);
+        console.log(`    Generated:  ${new Date(report.generatedAt * 1000).toISOString()}`);
+        console.log(`    Report ID:  ${pc.gray(report.reportId.slice(0, 16))}...`);
+        console.log('');
+
+        // Show context signals (CX_ prefix)
+        const cxSignals = report.signals.filter((s) => s.signalId.startsWith('CX_'));
+        if (cxSignals.length > 0) {
+          console.log(pc.bold('  Context Signals:'));
+          for (const sig of cxSignals) {
+            console.log(`    ${severityColor(sig.severity)} ${pc.gray(sig.signalId)}`);
+          }
+          console.log('');
+        } else {
+          console.log(pc.gray('  No context signals in latest report.'));
+          console.log('');
+        }
+
+        // Show all evidence links
+        if (report.evidenceLinks.length > 0) {
+          const cxEvidence = report.evidenceLinks.filter(
+            (e) => e.type.startsWith('funding') || e.type.startsWith('top') || e.type.startsWith('tx') || e.type.startsWith('current') || e.type.startsWith('prior') || e.type.startsWith('micro') || e.type.startsWith('unique') || e.type.startsWith('activity'),
+          );
+          if (cxEvidence.length > 0) {
+            console.log(pc.bold('  Context Evidence:'));
+            for (const ev of cxEvidence) {
+              console.log(`    [${ev.type}] ${pc.gray(ev.ref)}`);
+            }
+            console.log('');
+          }
+        }
+      } else {
+        console.log(pc.gray('  No risk report found. Run cx:sync first.'));
         console.log('');
       }
     } finally {
