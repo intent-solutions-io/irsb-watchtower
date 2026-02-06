@@ -73,4 +73,4 @@ Stand up the Watchtower "brain" locally: Zod schemas, SQLite storage, determinis
 
 ## PR Link
 
-_PR to be opened_
+https://github.com/intent-solutions-io/irsb-watchtower/pull/10
