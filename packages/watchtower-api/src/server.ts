@@ -1,4 +1,7 @@
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import Fastify from 'fastify';
+import fastifyStatic from '@fastify/static';
 import type { FastifyInstance } from 'fastify';
 import {
   initDbWithInlineMigrations,
@@ -11,6 +14,10 @@ import { healthRoutes } from './routes/health.js';
 import { agentRoutes } from './routes/agents.js';
 import { receiptRoutes } from './routes/receipts.js';
 import { transparencyRoutes } from './routes/transparency.js';
+import { uiRoutes } from './routes/ui.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export interface ServerConfig {
   port: number;
@@ -55,11 +62,18 @@ export async function buildServer(overrides?: Partial<ServerConfig>): Promise<Fa
     }
   });
 
+  // Static assets
+  await server.register(fastifyStatic, {
+    root: join(__dirname, '../public'),
+    prefix: '/public/',
+  });
+
   // Register routes
   await server.register(healthRoutes);
   await server.register(agentRoutes, { db });
   await server.register(receiptRoutes, { db });
   await server.register(transparencyRoutes, { logDir: config.logDir, publicKey });
+  await server.register(uiRoutes, { db, logDir: config.logDir, publicKey });
 
   // Graceful shutdown
   server.addHook('onClose', () => {

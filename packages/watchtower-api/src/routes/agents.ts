@@ -2,12 +2,35 @@ import type { FastifyInstance } from 'fastify';
 import type Database from 'better-sqlite3';
 import {
   getAgent,
+  listAgents,
   getLatestRiskReport,
   listAlerts,
 } from '@irsb-watchtower/watchtower-core';
 
 export async function agentRoutes(fastify: FastifyInstance, opts: { db: Database.Database }): Promise<void> {
   const { db } = opts;
+
+  /**
+   * GET /v1/agents
+   * List all agents with latest risk score and active alert count.
+   */
+  fastify.get('/v1/agents', async (_request, reply) => {
+    const agents = listAgents(db);
+    const enriched = agents.map((agent) => {
+      const report = getLatestRiskReport(db, agent.agentId);
+      const activeAlerts = listAlerts(db, { agentId: agent.agentId, activeOnly: true });
+      return {
+        agentId: agent.agentId,
+        status: agent.status,
+        labels: agent.labels,
+        overallRisk: report?.overallRisk ?? null,
+        confidence: report?.confidence ?? null,
+        lastUpdated: report?.generatedAt ?? agent.createdAt,
+        activeAlertsCount: activeAlerts.length,
+      };
+    });
+    return reply.send({ agents: enriched });
+  });
 
   /**
    * GET /v1/agents/:agentId/risk

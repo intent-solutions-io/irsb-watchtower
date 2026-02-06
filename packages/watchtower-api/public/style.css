@@ -1,0 +1,28 @@
+/* Watchtower Dashboard — custom styles (PicoCSS handles the rest) */
+
+/* Risk badges */
+.risk-critical { background: #dc3545; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.risk-high     { background: #fd7e14; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.risk-medium   { background: #0d6efd; color: #fff; padding: 2px 8px; border-radius: 4px; }
+.risk-low      { background: #198754; color: #fff; padding: 2px 8px; border-radius: 4px; }
+.risk-none     { background: #6c757d; color: #fff; padding: 2px 8px; border-radius: 4px; }
+
+/* Severity badges reuse same palette */
+.severity-critical { background: #dc3545; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.severity-high     { background: #fd7e14; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.severity-medium   { background: #0d6efd; color: #fff; padding: 2px 8px; border-radius: 4px; }
+.severity-low      { background: #198754; color: #fff; padding: 2px 8px; border-radius: 4px; }
+.severity-info     { background: #6c757d; color: #fff; padding: 2px 8px; border-radius: 4px; }
+
+/* Status badges */
+.status-active   { color: #198754; font-weight: 600; }
+.status-resolved { color: #6c757d; }
+
+/* Nav */
+nav a { margin-right: 1rem; }
+nav .brand { font-weight: 700; }
+
+/* Misc */
+.mono { font-family: monospace; font-size: 0.85em; }
+.muted { color: #6c757d; }
+pre.json { max-height: 400px; overflow: auto; }

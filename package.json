@@ -12,6 +12,7 @@
     "dev:api": "pnpm --filter @irsb-watchtower/api dev",
     "dev:worker": "pnpm --filter @irsb-watchtower/worker dev",
     "dev:wt": "pnpm --filter @irsb-watchtower/watchtower-cli dev",
+    "dev:dashboard": "pnpm --filter @irsb-watchtower/watchtower-api dev",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",

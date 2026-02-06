@@ -121,6 +121,60 @@ describe('GET /v1/transparency/leaves', () => {
   });
 });
 
+describe('GET /v1/agents', () => {
+  it('should return agent list with enrichment', async () => {
+    const res = await server.inject({ method: 'GET', url: '/v1/agents' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(Array.isArray(body.agents)).toBe(true);
+    expect(body.agents.length).toBeGreaterThanOrEqual(1);
+    const agent1 = body.agents.find((a: { agentId: string }) => a.agentId === 'agent-1');
+    expect(agent1).toBeTruthy();
+    expect(typeof agent1.overallRisk).toBe('number');
+    expect(typeof agent1.activeAlertsCount).toBe('number');
+  });
+});
+
+describe('GET /v1/transparency/status', () => {
+  it('should return transparency status with verifications', async () => {
+    const res = await server.inject({ method: 'GET', url: '/v1/transparency/status' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.latestDate).toBeTruthy();
+    expect(Array.isArray(body.recentVerifications)).toBe(true);
+    expect(body.recentVerifications.length).toBe(7);
+    expect(body.publicKey).toBeTruthy();
+  });
+});
+
+describe('Dashboard UI routes', () => {
+  it('GET / should return HTML with agent table', async () => {
+    const res = await server.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('Watchtower');
+    expect(res.body).toContain('agent-1');
+  });
+
+  it('GET /agent/agent-1 should return HTML with agent detail', async () => {
+    const res = await server.inject({ method: 'GET', url: '/agent/agent-1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('agent-1');
+  });
+
+  it('GET /agent/nonexistent should return 404', async () => {
+    const res = await server.inject({ method: 'GET', url: '/agent/nonexistent' });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('GET /transparency should return HTML', async () => {
+    const res = await server.inject({ method: 'GET', url: '/transparency' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+  });
+});
+
 describe('API key auth', () => {
   afterEach(() => {
     delete process.env['WATCHTOWER_API_KEY'];
