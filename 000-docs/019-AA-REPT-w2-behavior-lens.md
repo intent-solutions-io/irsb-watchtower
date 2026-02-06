@@ -54,4 +54,4 @@ Add the Behavior Lens to Watchtower: ingest solver evidence manifests, verify ev
 
 ## PR Link
 
-**PR**: _(to be opened)_
+**PR**: https://github.com/intent-solutions-io/irsb-watchtower/pull/11
