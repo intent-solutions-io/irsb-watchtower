@@ -96,9 +96,9 @@ export type LocalSignerConfig = z.infer<typeof localSignerConfigSchema>;
  */
 export const agentPasskeySignerConfigSchema = z.object({
   type: z.literal('agent-passkey'),
-  /** Agent Passkey service endpoint */
-  endpoint: z.string().url().default('https://irsb-agent-passkey-308207955734.us-central1.run.app'),
-  /** Authentication token for the service */
+  /** Agent Passkey service endpoint (required, from AGENT_PASSKEY_ENDPOINT env var) */
+  endpoint: z.string().url(),
+  /** Authentication token for the service (from AGENT_PASSKEY_AUTH_TOKEN env var) */
   authToken: z.string().min(1).optional(),
   /** Timeout in milliseconds (default: 30000) */
   timeoutMs: z.coerce.number().int().min(1000).max(120000).default(30000),

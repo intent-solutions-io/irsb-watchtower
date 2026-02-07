@@ -45,10 +45,14 @@ export interface GcpKmsSignerConfig {
  * // Before (deprecated)
  * const signer = createGcpKmsSigner({ projectId, keyring, key, ... });
  *
- * // After (recommended)
+ * // After (recommended) - requires AGENT_PASSKEY_ENDPOINT env var
+ * import { createAgentPasskeySignerFromEnv } from './agentPasskeySigner.js';
+ * const signer = createAgentPasskeySignerFromEnv();
+ *
+ * // Or with explicit config:
  * import { createAgentPasskeySigner } from './agentPasskeySigner.js';
  * const signer = createAgentPasskeySigner({
- *   endpoint: 'https://irsb-agent-passkey-308207955734.us-central1.run.app',
+ *   endpoint: process.env.AGENT_PASSKEY_ENDPOINT!,
  *   role: 'watchtower',
  * });
  * ```

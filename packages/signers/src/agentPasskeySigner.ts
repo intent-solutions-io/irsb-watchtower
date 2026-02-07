@@ -265,7 +265,11 @@ export class AgentPasskeySigner implements Signer {
       throw new Error(`Agent-passkey request failed: ${response.status} ${error}`);
     }
 
-    return response.json() as Promise<AgentPasskeyResponse>;
+    const data = await response.json();
+    if (typeof data !== 'object' || data === null) {
+      throw new Error('Invalid response from agent-passkey service: expected object');
+    }
+    return data as AgentPasskeyResponse;
   }
 }
 
@@ -295,18 +299,36 @@ export function createAgentPasskeySigner(config: AgentPasskeySignerConfig): Agen
 /**
  * Create an Agent Passkey signer from environment variables
  *
- * Environment variables:
- * - AGENT_PASSKEY_ENDPOINT (default: production Cloud Run URL)
- * - AGENT_PASSKEY_AUTH_TOKEN
- * - AGENT_PASSKEY_ROLE (default: watchtower)
- * - AGENT_PASSKEY_TIMEOUT_MS (default: 30000)
+ * Required environment variables:
+ * - AGENT_PASSKEY_ENDPOINT - Service URL (required, no default)
+ *
+ * Optional environment variables:
+ * - AGENT_PASSKEY_AUTH_TOKEN - Authentication token
+ * - AGENT_PASSKEY_ROLE - Role: 'watchtower' | 'solver' (default: watchtower)
+ * - AGENT_PASSKEY_TIMEOUT_MS - Request timeout (default: 30000)
+ *
+ * @throws Error if AGENT_PASSKEY_ENDPOINT is not set
  */
 export function createAgentPasskeySignerFromEnv(): AgentPasskeySigner {
+  const endpoint = process.env['AGENT_PASSKEY_ENDPOINT'];
+  if (!endpoint) {
+    throw new Error('AGENT_PASSKEY_ENDPOINT environment variable is required');
+  }
+
+  const roleEnv = process.env['AGENT_PASSKEY_ROLE'];
+  const role: 'watchtower' | 'solver' =
+    roleEnv === 'solver' ? 'solver' : 'watchtower';
+
+  const timeoutEnv = process.env['AGENT_PASSKEY_TIMEOUT_MS'];
+  const timeoutMs = timeoutEnv ? parseInt(timeoutEnv, 10) : 30000;
+  if (isNaN(timeoutMs) || timeoutMs < 1000) {
+    throw new Error('AGENT_PASSKEY_TIMEOUT_MS must be a number >= 1000');
+  }
+
   return new AgentPasskeySigner({
-    endpoint: process.env['AGENT_PASSKEY_ENDPOINT'] ??
-      'https://irsb-agent-passkey-308207955734.us-central1.run.app',
+    endpoint,
     authToken: process.env['AGENT_PASSKEY_AUTH_TOKEN'],
-    role: (process.env['AGENT_PASSKEY_ROLE'] as 'watchtower' | 'solver') ?? 'watchtower',
-    timeoutMs: parseInt(process.env['AGENT_PASSKEY_TIMEOUT_MS'] ?? '30000', 10),
+    role,
+    timeoutMs,
   });
 }
