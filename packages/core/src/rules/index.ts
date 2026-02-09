@@ -3,6 +3,7 @@ import { SampleRule, MockAlwaysFindRule } from './sampleRule.js';
 
 export { SampleRule, MockAlwaysFindRule } from './sampleRule.js';
 export { ReceiptStaleRule, createReceiptStaleRule, type ReceiptStaleRuleConfig } from './receiptStaleRule.js';
+export { DelegationPaymentRule, createDelegationPaymentRule, type DelegationPaymentRuleConfig } from './delegationPaymentRule.js';
 
 /**
  * Rule registry - maps rule IDs to rule instances
