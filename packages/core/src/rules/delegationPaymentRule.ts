@@ -7,6 +7,10 @@ import {
 } from '../finding.js';
 import type { Rule, RuleMetadata, ChainContext } from './rule.js';
 
+/** keccak256("DelegatedPaymentSettled(bytes32,bytes32,address,address,address,uint256)") */
+const DELEGATED_PAYMENT_SETTLED_TOPIC =
+  '0x' + '0'.repeat(64); // TODO: compute actual topic hash from ABI
+
 /**
  * Configuration for the Delegation Payment rule
  */
@@ -19,9 +23,6 @@ export interface DelegationPaymentRuleConfig {
 
   /** Monitored X402Facilitator contract address */
   facilitatorAddress: string;
-
-  /** Monitored WalletDelegate contract address */
-  walletDelegateAddress: string;
 }
 
 /**
@@ -31,8 +32,6 @@ export interface DelegationPaymentRuleConfig {
  * Detects:
  * 1. Delegated settlements exceeding auto-approve thresholds
  * 2. High-frequency settlement patterns (potential abuse)
- * 3. Settlements on revoked delegations (should be impossible but defense-in-depth)
- * 4. Failed settlement attempts (gas estimation failures, reverts)
  *
  * This rule provides defense-in-depth monitoring for the delegation system,
  * complementing the on-chain caveat enforcers.
@@ -68,12 +67,22 @@ export class DelegationPaymentRule implements Rule {
     const settlementAmounts = new Map<string, bigint>();
 
     for (const event of events) {
-      // Filter for PaymentSettled and DelegatedPaymentSettled events
+      // Filter by contract address
       if (event.address?.toLowerCase() !== this.config.facilitatorAddress.toLowerCase()) {
         continue;
       }
 
-      const delegationHash = event.topics?.[2] ?? '';
+      // Filter by event signature (topics[0]) for DelegatedPaymentSettled
+      if (event.topics?.[0] !== DELEGATED_PAYMENT_SETTLED_TOPIC) {
+        continue;
+      }
+
+      // Skip events without a valid delegationHash
+      const delegationHash = event.topics?.[1];
+      if (!delegationHash) {
+        continue;
+      }
+
       const amount = event.data ? BigInt(event.data) : 0n;
 
       // Track settlement frequency
