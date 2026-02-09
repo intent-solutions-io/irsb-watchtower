@@ -5,6 +5,52 @@ All notable changes to IRSB-Watchtower will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+---
+
+## [0.4.0] - 2026-02-08
+
+Five watchtower phases complete: core engine, behavior lens, identity lens, context lens, and API/alerting.
+
+### Added
+
+#### W1: Watchtower Core (#9)
+- Schemas and base types for watchtower operations
+- SQLite storage for findings and state
+- Scoring engine for solver reputation
+- CLI utilities for configuration and simulation
+
+#### W2: Behavior Lens (#10)
+- Receipt ingest from on-chain events
+- Evidence verification pipeline
+- Behavioral signal extraction
+
+#### W3: Identity Lens (#11)
+- ERC-8004 agent card discovery
+- Agent card validation
+- Identity signal publishing to registry
+
+#### W4: Context Lens (#12)
+- Ethereum L1 lightweight heuristics
+- Optional payment adjacency detection
+- Cross-chain context aggregation
+
+#### W5: API + Alerting (#14)
+- Fastify API endpoints for findings and actions
+- Alerting subsystem with configurable sinks
+- Signed transparency log for verifiable off-chain findings
+
+### Changed
+- CLAUDE.md rewritten to reflect full codebase architecture
+- CI now enforces canonical drift detection
+
+### Documentation
+- Synced canonical standards from irsb-solver (000-* prefix)
+- Complete architecture documentation
+
+---
+
 ## [0.3.0] - 2026-02-03
 
 ### Added
