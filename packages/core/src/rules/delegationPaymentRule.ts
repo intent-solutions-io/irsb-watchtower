@@ -7,10 +7,6 @@ import {
 } from '../finding.js';
 import type { Rule, RuleMetadata, ChainContext } from './rule.js';
 
-/** keccak256("DelegatedPaymentSettled(bytes32,bytes32,address,address,address,uint256)") */
-const DELEGATED_PAYMENT_SETTLED_TOPIC =
-  '0x' + '0'.repeat(64); // TODO: compute actual topic hash from ABI
-
 /**
  * Configuration for the Delegation Payment rule
  */
@@ -23,6 +19,9 @@ export interface DelegationPaymentRuleConfig {
 
   /** Monitored X402Facilitator contract address */
   facilitatorAddress: string;
+
+  /** Number of blocks to look back for events (default: 100) */
+  blockWindow?: number;
 }
 
 /**
@@ -55,10 +54,11 @@ export class DelegationPaymentRule implements Rule {
 
   async evaluate(context: ChainContext): Promise<Finding[]> {
     const findings: Finding[] = [];
+    const blockWindow = BigInt(this.config.blockWindow ?? 100);
 
     // Get events from the facilitator contract
     const events = await context.getEvents(
-      context.currentBlock - 100n,
+      context.currentBlock - blockWindow,
       context.currentBlock,
     );
 
@@ -67,23 +67,24 @@ export class DelegationPaymentRule implements Rule {
     const settlementAmounts = new Map<string, bigint>();
 
     for (const event of events) {
-      // Filter by contract address
-      if (event.address?.toLowerCase() !== this.config.facilitatorAddress.toLowerCase()) {
+      // Filter by event name for DelegatedPaymentSettled
+      if (event.name !== 'DelegatedPaymentSettled') {
         continue;
       }
 
-      // Filter by event signature (topics[0]) for DelegatedPaymentSettled
-      if (event.topics?.[0] !== DELEGATED_PAYMENT_SETTLED_TOPIC) {
+      // Filter by contract address (stored in event.args by the chain provider)
+      const eventAddress = event.args.address as string | undefined;
+      if (eventAddress && eventAddress.toLowerCase() !== this.config.facilitatorAddress.toLowerCase()) {
         continue;
       }
 
       // Skip events without a valid delegationHash
-      const delegationHash = event.topics?.[1];
+      const delegationHash = event.args.delegationHash as string | undefined;
       if (!delegationHash) {
         continue;
       }
 
-      const amount = event.data ? BigInt(event.data) : 0n;
+      const amount = event.args.amount ? BigInt(event.args.amount as string | number | bigint) : 0n;
 
       // Track settlement frequency
       const count = (settlementCounts.get(delegationHash) ?? 0) + 1;
@@ -104,7 +105,7 @@ export class DelegationPaymentRule implements Rule {
           severity: Severity.HIGH,
           category: FindingCategory.RECEIPT,
           blockNumber: context.currentBlock,
-          txHash: event.transactionHash,
+          txHash: event.txHash,
           contractAddress: this.config.facilitatorAddress,
           recommendedAction: ActionType.MANUAL_REVIEW,
           metadata: {
@@ -126,7 +127,7 @@ export class DelegationPaymentRule implements Rule {
           ruleId: this.metadata.id,
           title: `High-frequency settlements on delegation ${delegationHash.slice(0, 10)}...`,
           description:
-            `Delegation ${delegationHash} has ${count} settlements in the last 100 blocks ` +
+            `Delegation ${delegationHash} has ${count} settlements in the last ${blockWindow} blocks ` +
             `(threshold: ${this.config.maxSettlementsPerEpoch}). ` +
             `Total amount: ${totalAmount}. Possible abuse pattern.`,
           severity: Severity.MEDIUM,

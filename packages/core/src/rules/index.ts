@@ -1,5 +1,6 @@
 import type { Rule } from './rule.js';
 import { SampleRule, MockAlwaysFindRule } from './sampleRule.js';
+import { createDelegationPaymentRule, type DelegationPaymentRuleConfig } from './delegationPaymentRule.js';
 
 export { SampleRule, MockAlwaysFindRule } from './sampleRule.js';
 export { ReceiptStaleRule, createReceiptStaleRule, type ReceiptStaleRuleConfig } from './receiptStaleRule.js';
@@ -74,12 +75,19 @@ export class RuleRegistry {
 /**
  * Create a registry with default rules
  */
-export function createDefaultRegistry(): RuleRegistry {
+export function createDefaultRegistry(config?: {
+  delegationPayment?: DelegationPaymentRuleConfig;
+}): RuleRegistry {
   const registry = new RuleRegistry();
 
   // Register built-in rules
   registry.register(new SampleRule());
   registry.register(new MockAlwaysFindRule());
+
+  // Register delegation payment rule if config provided
+  if (config?.delegationPayment) {
+    registry.register(createDelegationPaymentRule(config.delegationPayment));
+  }
 
   return registry;
 }
