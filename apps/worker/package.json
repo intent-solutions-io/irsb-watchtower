@@ -20,6 +20,7 @@
     "@irsb-watchtower/core": "workspace:*",
     "@irsb-watchtower/evidence-store": "workspace:*",
     "@irsb-watchtower/irsb-adapter": "workspace:*",
+    "@irsb-watchtower/signers": "workspace:*",
     "@irsb-watchtower/metrics": "workspace:*",
     "@irsb-watchtower/webhook": "workspace:*",
     "pino": "^8.19.0",

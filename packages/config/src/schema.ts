@@ -13,7 +13,7 @@ const privateKeySchema = z.string().regex(/^0x[a-fA-F0-9]{64}$/, 'Invalid privat
 /**
  * Signer type enumeration
  */
-export const signerTypeSchema = z.enum(['local', 'gcp-kms', 'lit-pkp']);
+export const signerTypeSchema = z.enum(['local', 'gcp-kms']);
 export type SignerType = z.infer<typeof signerTypeSchema>;
 
 /**
@@ -84,26 +84,17 @@ export const localSignerConfigSchema = z.object({
 export type LocalSignerConfig = z.infer<typeof localSignerConfigSchema>;
 
 /**
- * GCP KMS signer configuration (stub)
+ * GCP KMS signer configuration
  */
 export const gcpKmsSignerConfigSchema = z.object({
   type: z.literal('gcp-kms'),
   projectId: z.string().min(1),
-  location: z.string().min(1),
+  location: z.string().min(1).default('us-central1'),
   keyring: z.string().min(1),
   key: z.string().min(1),
+  keyVersion: z.string().min(1).default('1'),
 });
 export type GcpKmsSignerConfig = z.infer<typeof gcpKmsSignerConfigSchema>;
-
-/**
- * Lit PKP signer configuration (stub)
- */
-export const litPkpSignerConfigSchema = z.object({
-  type: z.literal('lit-pkp'),
-  pkpPublicKey: z.string().min(1),
-  authSig: z.string().min(1),
-});
-export type LitPkpSignerConfig = z.infer<typeof litPkpSignerConfigSchema>;
 
 /**
  * Union of all signer configurations
@@ -111,7 +102,6 @@ export type LitPkpSignerConfig = z.infer<typeof litPkpSignerConfigSchema>;
 export const signerConfigSchema = z.discriminatedUnion('type', [
   localSignerConfigSchema,
   gcpKmsSignerConfigSchema,
-  litPkpSignerConfigSchema,
 ]);
 export type SignerConfig = z.infer<typeof signerConfigSchema>;
 

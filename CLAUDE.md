@@ -38,7 +38,7 @@ Three-layer design with 9 packages and 3 apps:
 
 1. **Core** (`packages/core`) - Portable rule engine, Finding schema, ActionExecutor. Zero cloud deps.
 2. **Runner** (`apps/api`, `apps/worker`, `apps/cli`) - API server, background scanner, CLI utilities
-3. **Signer** (`packages/signers`) - Pluggable: LocalPrivateKey (implemented) | Cloud KMS (from delegation upgrade) | Lit PKP (legacy stub)
+3. **Signer** (`packages/signers`) - Pluggable: LocalPrivateKey (dev/test) | Cloud KMS (production)
 
 Supporting packages: `config` (Zod schemas), `chain` (viem abstraction), `irsb-adapter` (contract client), `resilience` (retry + circuit breaker), `webhook` (HMAC-signed delivery), `evidence-store` (JSONL persistence), `metrics` (Prometheus)
 
@@ -173,6 +173,5 @@ All via environment variables (see `.env.example` for full list). Key groups:
 
 - `createChainContext()` in worker uses mock data — real IRSB client integration pending
 - Cloud KMS signer (`packages/signers`) - scaffolded in delegation upgrade, integration pending
-- Lit PKP signer (`packages/signers`) - legacy stub (deprecated, use Cloud KMS)
 - CLI `check-config` and `simulate` commands are stubs
 - Delegation payment monitoring rule (`delegationPaymentRule.ts`) — detects anomalous delegated payments via EIP-7702 WalletDelegate events

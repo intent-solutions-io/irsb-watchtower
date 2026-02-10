@@ -18,20 +18,22 @@ import {
   type FindingRecord,
   type ActionResultRecord,
 } from '@irsb-watchtower/evidence-store';
-import { IrsbClient } from '@irsb-watchtower/irsb-adapter';
+import { IrsbClient, DisputeReason } from '@irsb-watchtower/irsb-adapter';
 import { metrics, registry as metricsRegistry } from '@irsb-watchtower/metrics';
 import { createWebhookSink, type WebhookSink } from '@irsb-watchtower/webhook';
 import { getConfig } from './lib/config.js';
 import { createLogger } from './lib/logger.js';
 
 /**
- * Create a chain context for rule evaluation using the IRSB client
+ * Create a chain context for rule evaluation using the IRSB client.
+ * Queries real on-chain data via the IrsbClient.
  */
 function createChainContext(
-  _client: IrsbClient, // Prefixed to indicate intentionally unused for now
+  client: IrsbClient,
   blockNumber: bigint,
   blockTimestamp: Date,
-  chainId: number
+  chainId: number,
+  lookbackBlocks: number,
 ): ChainContext {
   return {
     currentBlock: blockNumber,
@@ -39,38 +41,75 @@ function createChainContext(
     chainId,
 
     async getReceiptsInChallengeWindow() {
-      // In production, this would query the IRSB client for receipts
-      // For now, return mock data that demonstrates the rule
-      // TODO: Replace with actual client.getReceiptPostedEvents() + enrichment
-      return [
-        {
-          id: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-          intentHash: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-          solverId: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-          createdAt: new Date(Date.now() - 90 * 60 * 1000), // 90 minutes ago
-          expiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          status: 'pending' as const,
-          // Challenge deadline was 30 minutes ago (stale!)
-          challengeDeadline: new Date(Date.now() - 30 * 60 * 1000),
-          blockNumber: blockNumber - 100n,
-          txHash: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-        },
-      ];
+      const fromBlock = blockNumber > BigInt(lookbackBlocks)
+        ? blockNumber - BigInt(lookbackBlocks)
+        : 0n;
+
+      const events = await client.getReceiptPostedEvents(fromBlock, blockNumber);
+
+      return events.map((event) => ({
+        id: event.receiptId,
+        intentHash: event.intentHash,
+        solverId: event.solverId,
+        createdAt: new Date(Number(blockTimestamp) - 3600_000), // Approximate
+        expiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        status: 'pending' as const,
+        challengeDeadline: new Date(Number(event.challengeDeadline) * 1000),
+        blockNumber: event.blockNumber,
+        txHash: event.txHash,
+      }));
     },
 
     async getActiveDisputes() {
-      // TODO: Replace with actual client.getDisputeOpenedEvents()
-      return [];
+      const fromBlock = blockNumber > BigInt(lookbackBlocks)
+        ? blockNumber - BigInt(lookbackBlocks)
+        : 0n;
+
+      const events = await client.getDisputeOpenedEvents(fromBlock, blockNumber);
+
+      return events.map((event) => ({
+        id: event.disputeId,
+        receiptId: event.receiptId,
+        challenger: event.challenger,
+        reason: event.reason,
+        status: 'open' as const,
+        openedAt: blockTimestamp,
+        deadline: new Date(blockTimestamp.getTime() + 24 * 60 * 60 * 1000),
+        blockNumber: event.blockNumber,
+      }));
     },
 
-    async getSolverInfo(_solverId: string) {
-      // TODO: Replace with actual client.getSolver()
-      return null;
+    async getSolverInfo(solverId: string) {
+      const solver = await client.getSolver(solverId as `0x${string}`);
+      if (!solver) return null;
+      return {
+        id: solver.id,
+        owner: solver.owner,
+        bondAmount: solver.bondAmount,
+        status: solver.status,
+        reputation: solver.reputation,
+        jailCount: solver.jailCount,
+        registeredAt: solver.registeredAt,
+      };
     },
 
-    async getEvents(_fromBlock: bigint, _toBlock: bigint) {
-      // TODO: Replace with actual event fetching
-      return [];
+    async getEvents(fromBlock: bigint, toBlock: bigint) {
+      const receipts = await client.getReceiptPostedEvents(fromBlock, toBlock);
+      const disputes = await client.getDisputeOpenedEvents(fromBlock, toBlock);
+      return [
+        ...receipts.map((r) => ({
+          name: 'ReceiptPosted',
+          blockNumber: r.blockNumber,
+          txHash: r.txHash,
+          args: { receiptId: r.receiptId, solverId: r.solverId, intentHash: r.intentHash } as Record<string, unknown>,
+        })),
+        ...disputes.map((d) => ({
+          name: 'DisputeOpened',
+          blockNumber: d.blockNumber,
+          txHash: d.txHash,
+          args: { disputeId: d.disputeId, receiptId: d.receiptId, challenger: d.challenger } as Record<string, unknown>,
+        })),
+      ];
     },
   };
 }
@@ -175,8 +214,8 @@ async function runScanCycle(ctx: ScanContext): Promise<Finding[]> {
       'Starting scan cycle'
     );
 
-    // Create chain context
-    const context = createChainContext(client, currentBlock, blockTimestamp, chainId);
+    // Create chain context with real on-chain data
+    const context = createChainContext(client, currentBlock, blockTimestamp, chainId, config.worker.lookbackBlocks);
 
     // Execute rules
     const result = await engine.execute(context);
@@ -392,10 +431,37 @@ function createChainWatcher(
     chainLogger[level]({ component: 'ActionExecutor' }, message);
   });
 
-  // Register action handlers
+  // Register action handlers - uses real IRSB client when signer is available
   executor.registerHandler('OPEN_DISPUTE' as ActionType, async (finding: Finding) => {
-    chainLogger.info({ receiptId: finding.receiptId }, 'Opening dispute');
-    return { txHash: '0xmock_tx_hash' };
+    chainLogger.info({ receiptId: finding.receiptId }, 'Opening dispute via IRSB client');
+
+    if (!finding.receiptId) {
+      throw new Error('Cannot open dispute: no receiptId in finding');
+    }
+
+    // Check if signer is configured
+    if (!config.signer) {
+      throw new Error('Cannot open dispute: no signer configured (set SIGNER_TYPE)');
+    }
+
+    // Build signer and set wallet client on the IRSB client
+    const { buildSigner } = await import('./lib/signer.js');
+    const signer = await buildSigner(config.signer, chainEntry.rpcUrl);
+    const account = await signer.getAccount();
+    client.setWalletClient(account, chainEntry.rpcUrl);
+
+    // Compute evidence hash from finding metadata
+    const evidenceHash = finding.metadata?.evidenceHash as `0x${string}`
+      ?? '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+    const txHash = await client.openDispute({
+      receiptId: finding.receiptId as `0x${string}`,
+      reason: (finding.metadata?.disputeReason as DisputeReason) ?? DisputeReason.TIMEOUT,
+      evidenceHash,
+      bondAmount: await client.getMinimumBond(),
+    });
+
+    return { txHash };
   });
 
   // Create rule registry with receipt stale rule

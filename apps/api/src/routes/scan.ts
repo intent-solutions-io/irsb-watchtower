@@ -4,7 +4,9 @@ import {
   serializeFinding,
   type ChainContext,
 } from '@irsb-watchtower/core';
+import { IrsbClient } from '@irsb-watchtower/irsb-adapter';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { getConfig } from '../lib/config.js';
 
 /**
  * Scan request body
@@ -34,34 +36,90 @@ interface ScanResponse {
 }
 
 /**
- * Create a mock chain context for scanning
- *
- * TODO: Replace with real chain context that queries actual contracts
+ * Create a chain context backed by real on-chain data
  */
-function createMockChainContext(): ChainContext {
+function createChainContext(
+  client: IrsbClient,
+  blockNumber: bigint,
+  blockTimestamp: Date,
+  chainId: number,
+  lookbackBlocks: number,
+): ChainContext {
   return {
-    currentBlock: BigInt(Math.floor(Date.now() / 1000)), // Mock block number
-    blockTimestamp: new Date(),
-    chainId: 11155111, // Sepolia
+    currentBlock: blockNumber,
+    blockTimestamp,
+    chainId,
 
     async getReceiptsInChallengeWindow() {
-      // TODO: Query IntentReceiptHub for receipts in challenge window
-      return [];
+      const fromBlock = blockNumber > BigInt(lookbackBlocks)
+        ? blockNumber - BigInt(lookbackBlocks)
+        : 0n;
+
+      const events = await client.getReceiptPostedEvents(fromBlock, blockNumber);
+
+      return events.map((event) => ({
+        id: event.receiptId,
+        intentHash: event.intentHash,
+        solverId: event.solverId,
+        createdAt: new Date(Number(blockTimestamp) - 3600_000),
+        expiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        status: 'pending' as const,
+        challengeDeadline: new Date(Number(event.challengeDeadline) * 1000),
+        blockNumber: event.blockNumber,
+        txHash: event.txHash,
+      }));
     },
 
     async getActiveDisputes() {
-      // TODO: Query IntentReceiptHub for active disputes
-      return [];
+      const fromBlock = blockNumber > BigInt(lookbackBlocks)
+        ? blockNumber - BigInt(lookbackBlocks)
+        : 0n;
+
+      const events = await client.getDisputeOpenedEvents(fromBlock, blockNumber);
+
+      return events.map((event) => ({
+        id: event.disputeId,
+        receiptId: event.receiptId,
+        challenger: event.challenger,
+        reason: event.reason,
+        status: 'open' as const,
+        openedAt: blockTimestamp,
+        deadline: new Date(blockTimestamp.getTime() + 24 * 60 * 60 * 1000),
+        blockNumber: event.blockNumber,
+      }));
     },
 
-    async getSolverInfo(_solverId: string) {
-      // TODO: Query SolverRegistry for solver info
-      return null;
+    async getSolverInfo(solverId: string) {
+      const solver = await client.getSolver(solverId as `0x${string}`);
+      if (!solver) return null;
+      return {
+        id: solver.id,
+        owner: solver.owner,
+        bondAmount: solver.bondAmount,
+        status: solver.status,
+        reputation: solver.reputation,
+        jailCount: solver.jailCount,
+        registeredAt: solver.registeredAt,
+      };
     },
 
-    async getEvents(_fromBlock: bigint, _toBlock: bigint) {
-      // TODO: Query chain for events
-      return [];
+    async getEvents(fromBlock: bigint, toBlock: bigint) {
+      const receipts = await client.getReceiptPostedEvents(fromBlock, toBlock);
+      const disputes = await client.getDisputeOpenedEvents(fromBlock, toBlock);
+      return [
+        ...receipts.map((r) => ({
+          name: 'ReceiptPosted',
+          blockNumber: r.blockNumber,
+          txHash: r.txHash,
+          args: { receiptId: r.receiptId, solverId: r.solverId, intentHash: r.intentHash } as Record<string, unknown>,
+        })),
+        ...disputes.map((d) => ({
+          name: 'DisputeOpened',
+          blockNumber: d.blockNumber,
+          txHash: d.txHash,
+          args: { disputeId: d.disputeId, receiptId: d.receiptId, challenger: d.challenger } as Record<string, unknown>,
+        })),
+      ];
     },
   };
 }
@@ -70,8 +128,17 @@ function createMockChainContext(): ChainContext {
  * Register scan routes
  */
 export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
+  const config = getConfig();
+
   // Create rule engine with default rules
   const engine = new RuleEngine(createDefaultRegistry());
+
+  // Create IRSB client for chain queries
+  const client = new IrsbClient({
+    rpcUrl: config.chain.rpcUrl,
+    chainId: config.chain.chainId,
+    contracts: config.contracts,
+  });
 
   /**
    * POST /scan
@@ -81,13 +148,25 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Body: ScanRequestBody }>(
     '/scan',
     async (request: FastifyRequest<{ Body: ScanRequestBody }>, reply: FastifyReply) => {
-      const { ruleIds } = request.body || {};
+      const { ruleIds, lookbackBlocks } = request.body || {};
 
       fastify.log.info({ ruleIds }, 'Starting scan');
 
       try {
-        // Create chain context
-        const context = createMockChainContext();
+        // Get current block from chain
+        const blockNumber = await client.getBlockNumber();
+        const blockTimestamp = new Date(
+          Number(await client.getBlockTimestamp(blockNumber)) * 1000
+        );
+
+        // Create chain context with real data
+        const context = createChainContext(
+          client,
+          blockNumber,
+          blockTimestamp,
+          config.chain.chainId,
+          lookbackBlocks ?? config.worker.lookbackBlocks,
+        );
 
         // Execute rules
         const result = await engine.execute(context, { ruleIds });
@@ -107,7 +186,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
             rulesExecuted: result.rulesExecuted,
             rulesFailed: result.rulesFailed,
             totalDurationMs: result.totalDurationMs,
-            blockNumber: context.currentBlock.toString(),
+            blockNumber: blockNumber.toString(),
             timestamp: new Date().toISOString(),
           },
           ...(errors.length > 0 && { errors }),

@@ -1,4 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { IrsbClient, DisputeReason } from '@irsb-watchtower/irsb-adapter';
+import type { Signer } from '@irsb-watchtower/signers';
 import { getConfig } from '../lib/config.js';
 
 /**
@@ -42,6 +44,24 @@ interface ActionResponse {
   message?: string;
 }
 
+/** Cached signer instance */
+let cachedSigner: Signer | null = null;
+
+/**
+ * Build signer on demand
+ */
+async function getSigner(config: ReturnType<typeof getConfig>): Promise<Signer> {
+  if (cachedSigner) return cachedSigner;
+
+  if (!config.signer) {
+    throw new Error('No signer configured. Set SIGNER_TYPE environment variable.');
+  }
+
+  const { buildSigner } = await import('../lib/signer.js');
+  cachedSigner = await buildSigner(config.signer, config.chain.rpcUrl);
+  return cachedSigner;
+}
+
 /**
  * Register action routes
  *
@@ -77,21 +97,54 @@ export async function actionRoutes(fastify: FastifyInstance): Promise<void> {
 
       fastify.log.info({ receiptId, reason }, 'Opening dispute');
 
-      // TODO: Implement actual dispute opening
-      // 1. Validate receipt exists and is disputable
-      // 2. Get signer from config
-      // 3. Call IrsbClient.openDispute()
-      // 4. Wait for transaction confirmation
-      // 5. Return transaction hash
+      try {
+        // Build signer and IRSB client
+        const signer = await getSigner(config);
+        const account = await signer.getAccount();
 
-      // For now, return a mock response
-      const response: ActionResponse = {
-        success: false,
-        error: 'Not implemented',
-        message: `Would open dispute for receipt ${receiptId} with reason "${reason}", evidence ${evidenceHash}, bond ${bondAmount} wei`,
-      };
+        const client = new IrsbClient({
+          rpcUrl: config.chain.rpcUrl,
+          chainId: config.chain.chainId,
+          contracts: config.contracts,
+        });
 
-      return reply.status(501).send(response);
+        // Validate receipt exists
+        const receipt = await client.getReceipt(receiptId as `0x${string}`);
+        if (!receipt) {
+          return reply.status(404).send({
+            success: false,
+            error: `Receipt ${receiptId} not found on-chain`,
+          } satisfies ActionResponse);
+        }
+
+        // Set up wallet client for write operations
+        client.setWalletClient(account, config.chain.rpcUrl);
+
+        // Open dispute
+        const txHash = await client.openDispute({
+          receiptId: receiptId as `0x${string}`,
+          reason: reason as DisputeReason,
+          evidenceHash: evidenceHash as `0x${string}`,
+          bondAmount: BigInt(bondAmount),
+        });
+
+        const response: ActionResponse = {
+          success: true,
+          txHash,
+          message: `Dispute opened for receipt ${receiptId}`,
+        };
+
+        return reply.send(response);
+      } catch (error) {
+        fastify.log.error({ error, receiptId }, 'Failed to open dispute');
+
+        const response: ActionResponse = {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+
+        return reply.status(500).send(response);
+      }
     }
   );
 
@@ -108,20 +161,50 @@ export async function actionRoutes(fastify: FastifyInstance): Promise<void> {
 
       fastify.log.info({ disputeId, evidenceHash }, 'Submitting evidence');
 
-      // TODO: Implement actual evidence submission
-      // 1. Validate dispute exists and accepts evidence
-      // 2. Get signer from config
-      // 3. Call IrsbClient.submitEvidence()
-      // 4. Wait for transaction confirmation
-      // 5. Return transaction hash
+      try {
+        const signer = await getSigner(config);
+        const account = await signer.getAccount();
 
-      const response: ActionResponse = {
-        success: false,
-        error: 'Not implemented',
-        message: `Would submit evidence ${evidenceHash} for dispute ${disputeId}${description ? ` with description: ${description}` : ''}`,
-      };
+        const client = new IrsbClient({
+          rpcUrl: config.chain.rpcUrl,
+          chainId: config.chain.chainId,
+          contracts: config.contracts,
+        });
 
-      return reply.status(501).send(response);
+        // Validate dispute exists
+        const dispute = await client.getDispute(disputeId as `0x${string}`);
+        if (!dispute) {
+          return reply.status(404).send({
+            success: false,
+            error: `Dispute ${disputeId} not found on-chain`,
+          } satisfies ActionResponse);
+        }
+
+        client.setWalletClient(account, config.chain.rpcUrl);
+
+        const txHash = await client.submitEvidence({
+          disputeId: disputeId as `0x${string}`,
+          evidenceHash: evidenceHash as `0x${string}`,
+          description,
+        });
+
+        const response: ActionResponse = {
+          success: true,
+          txHash,
+          message: `Evidence submitted for dispute ${disputeId}`,
+        };
+
+        return reply.send(response);
+      } catch (error) {
+        fastify.log.error({ error, disputeId }, 'Failed to submit evidence');
+
+        const response: ActionResponse = {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+
+        return reply.status(500).send(response);
+      }
     }
   );
 
@@ -131,11 +214,22 @@ export async function actionRoutes(fastify: FastifyInstance): Promise<void> {
    * Check if actions are enabled and signer is healthy
    */
   fastify.get('/actions/status', async (_request: FastifyRequest, reply: FastifyReply) => {
+    let signerHealthy = false;
+
+    if (config.signer && config.api.enableActions) {
+      try {
+        const signer = await getSigner(config);
+        signerHealthy = await signer.isHealthy();
+      } catch {
+        // Signer not available
+      }
+    }
+
     const status = {
       enabled: config.api.enableActions,
       signerConfigured: !!config.signer,
       signerType: config.signer?.type ?? null,
-      signerHealthy: false, // TODO: Check actual signer health
+      signerHealthy,
     };
 
     return reply.send(status);
