@@ -63,27 +63,18 @@ function buildSignerConfig(env: NodeJS.ProcessEnv): SignerConfig | undefined {
       };
 
     case 'gcp-kms':
-      if (!env.GCP_PROJECT_ID || !env.GCP_KMS_LOCATION || !env.GCP_KMS_KEYRING || !env.GCP_KMS_KEY) {
+      if (!env.GCP_PROJECT_ID || !env.GCP_KMS_KEYRING || !env.GCP_KMS_KEY) {
         throw new Error(
-          'GCP_PROJECT_ID, GCP_KMS_LOCATION, GCP_KMS_KEYRING, and GCP_KMS_KEY are required when SIGNER_TYPE=gcp-kms'
+          'GCP_PROJECT_ID, GCP_KMS_KEYRING, and GCP_KMS_KEY are required when SIGNER_TYPE=gcp-kms'
         );
       }
       return {
         type: 'gcp-kms',
         projectId: env.GCP_PROJECT_ID,
-        location: env.GCP_KMS_LOCATION,
+        location: env.GCP_KMS_LOCATION ?? 'us-central1',
         keyring: env.GCP_KMS_KEYRING,
         key: env.GCP_KMS_KEY,
-      };
-
-    case 'lit-pkp':
-      if (!env.LIT_PKP_PUBLIC_KEY || !env.LIT_AUTH_SIG) {
-        throw new Error('LIT_PKP_PUBLIC_KEY and LIT_AUTH_SIG are required when SIGNER_TYPE=lit-pkp');
-      }
-      return {
-        type: 'lit-pkp',
-        pkpPublicKey: env.LIT_PKP_PUBLIC_KEY,
-        authSig: env.LIT_AUTH_SIG,
+        keyVersion: env.GCP_KMS_KEY_VERSION ?? '1',
       };
 
     default:

@@ -42,7 +42,7 @@ export interface LocalPrivateKeySignerConfig {
  * - Self-hosted environments with secure key storage
  *
  * WARNING: Never use this in production with keys that hold real value.
- * For production, use GcpKmsSigner or LitPkpSigner.
+ * For production, use GcpKmsSigner.
  */
 export class LocalPrivateKeySigner implements Signer {
   private account: PrivateKeyAccount;

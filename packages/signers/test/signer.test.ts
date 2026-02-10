@@ -4,8 +4,6 @@ import {
   createLocalSigner,
   GcpKmsSigner,
   createGcpKmsSigner,
-  LitPkpSigner,
-  createLitPkpSigner,
 } from '../src/index.js';
 
 // Test private key (DO NOT use in production!)
@@ -110,7 +108,7 @@ describe('GcpKmsSigner (stub)', () => {
     );
   });
 
-  it('throws on getAddress (not implemented)', async () => {
+  it('throws on getAddress when KMS is not configured', async () => {
     const signer = new GcpKmsSigner({
       projectId: 'test-project',
       location: 'us-central1',
@@ -118,10 +116,11 @@ describe('GcpKmsSigner (stub)', () => {
       key: 'test-key',
     });
 
-    await expect(signer.getAddress()).rejects.toThrow('stub');
+    // Will throw due to KMS not being configured in test env
+    await expect(signer.getAddress()).rejects.toThrow();
   });
 
-  it('reports unhealthy (not implemented)', async () => {
+  it('reports unhealthy when KMS is not configured', async () => {
     const signer = new GcpKmsSigner({
       projectId: 'test-project',
       location: 'us-central1',
@@ -129,51 +128,8 @@ describe('GcpKmsSigner (stub)', () => {
       key: 'test-key',
     });
 
+    // isHealthy returns false when KMS is unreachable
     expect(await signer.isHealthy()).toBe(false);
   });
 });
 
-describe('LitPkpSigner (stub)', () => {
-  it('creates stub signer', () => {
-    const signer = createLitPkpSigner({
-      pkpPublicKey: '0x1234567890abcdef',
-      authSig: 'auth-signature',
-    });
-
-    expect(signer.getType()).toBe('lit-pkp');
-  });
-
-  it('returns correct lit network', () => {
-    const signerDefault = new LitPkpSigner({
-      pkpPublicKey: '0x1234',
-      authSig: 'auth',
-    });
-
-    const signerCustom = new LitPkpSigner({
-      pkpPublicKey: '0x1234',
-      authSig: 'auth',
-      litNetwork: 'habanero',
-    });
-
-    expect(signerDefault.getLitNetwork()).toBe('serrano');
-    expect(signerCustom.getLitNetwork()).toBe('habanero');
-  });
-
-  it('throws on getAddress (not implemented)', async () => {
-    const signer = new LitPkpSigner({
-      pkpPublicKey: '0x1234',
-      authSig: 'auth',
-    });
-
-    await expect(signer.getAddress()).rejects.toThrow('stub');
-  });
-
-  it('reports unhealthy (not implemented)', async () => {
-    const signer = new LitPkpSigner({
-      pkpPublicKey: '0x1234',
-      authSig: 'auth',
-    });
-
-    expect(await signer.isHealthy()).toBe(false);
-  });
-});

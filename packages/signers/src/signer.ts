@@ -3,7 +3,7 @@ import type { Address, Hex, Account } from 'viem';
 /**
  * Signer type identifier
  */
-export type SignerType = 'local' | 'gcp-kms' | 'lit-pkp';
+export type SignerType = 'local' | 'gcp-kms';
 
 /**
  * Transaction request for signing
@@ -83,7 +83,6 @@ export interface TypedData {
  * This allows for pluggable signing mechanisms:
  * - LocalPrivateKeySigner: For development/testing
  * - GcpKmsSigner: For production with Cloud KMS
- * - LitPkpSigner: For decentralized key management
  */
 export interface Signer {
   /**
