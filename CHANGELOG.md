@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-02-11
+
+EIP-7702 delegation monitoring and Cloud KMS signing migration.
+
+### Added
+- DelegationPaymentRule for EIP-7702 WalletDelegate monitoring (#16)
+- Detects anomalous delegated payments (spend limit violations, time window violations, unauthorized targets)
+- GCP KMS signer implementation for production signing (#17)
+
+### Removed
+- Lit Protocol PKP signer stub removed (deprecated in favor of Cloud KMS + on-chain policy enforcement)
+- `SIGNING_MODE` simplified to `"local" | "gcp-kms"` only
+
+### Changed
+- Chain integration refactored for cleaner multi-chain support (#17)
+- README updated to remove Lit PKP stub references
+
+---
+
 ## [0.4.0] - 2026-02-08
 
 Five watchtower phases complete: core engine, behavior lens, identity lens, context lens, and API/alerting.
