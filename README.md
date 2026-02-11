@@ -15,10 +15,10 @@ Off-chain monitoring and enforcement for the [IRSB](https://github.com/intent-so
 │  ├──────────────┤    ├──────────────┤    ├──────────────┤      │
 │  │ Rule Engine  │    │   API App    │    │ LocalPrivKey │      │
 │  │ Finding Type │    │ Worker App   │    │ GCP KMS ○    │      │
-│  │ No cloud dep │    │ Config load  │    │ Lit PKP ○    │      │
+│  │ No cloud dep │    │ Config load  │    │              │      │
 │  └──────────────┘    └──────────────┘    └──────────────┘      │
 │                                                                 │
-│  ○ = stub (not yet implemented)                                │
+│  ○ = stub (integration pending)                                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,7 +67,7 @@ Every push and PR runs:
 | `@irsb-watchtower/core` | Rule engine, Finding type, action executor. Zero cloud deps |
 | `@irsb-watchtower/chain` | Chain provider abstraction (viem) |
 | `@irsb-watchtower/irsb-adapter` | IRSB contract client with retry + circuit breaker |
-| `@irsb-watchtower/signers` | Pluggable signer interface (LocalPrivateKey, GCP KMS stub, Lit PKP stub) |
+| `@irsb-watchtower/signers` | Pluggable signer interface (LocalPrivateKey, GCP KMS stub) |
 | `@irsb-watchtower/resilience` | Retry and circuit breaker utilities |
 | `@irsb-watchtower/webhook` | HMAC-signed webhook delivery |
 | `@irsb-watchtower/evidence-store` | JSONL evidence persistence |
